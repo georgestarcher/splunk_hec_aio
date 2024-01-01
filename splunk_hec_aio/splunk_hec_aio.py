@@ -165,6 +165,10 @@ class SplunkHecAio:
         get_index() - returns(string) - displays current value controlling HTTP Post parameter index value.
         set_sourcetype(string) - returns(none) - accepts string value to control if HTTP Posts place sourcetype value as a parameter. Default is None.
         get_sourcetype() - returns(string) - displays current value controlling HTTP Post parameter sourcetype value.
+        set_source(string) - returns(none) - accepts string value to control if HTTP Posts place source value as a parameter. Default is None.
+        get_source() - returns(string) - displays current value controlling HTTP Post parameter source value.
+        set_host(string) - returns(none) - accepts string value to control if HTTP Posts place host value as a parameter. Default is None.
+        get_host() - returns(string) - displays current value controlling HTTP Post parameter host value.
         set_https(bool) - returns(none) - accepts bool value to control if HTTPS is used in the Splunk URL. Default is True.
         get_https() - returns(bool) - displays current value controlling if HTTPS is used in the Splunk URL.
      
@@ -329,6 +333,8 @@ class SplunkHecAio:
         # We default to None as these are optional and the user should intentionally set the values. 
         self._index = None
         self._sourcetype = None
+        self._source = None
+        self._host = None
 
         # Set HTTP Controls
         self.http_raise_for_status = False
@@ -438,7 +444,7 @@ class SplunkHecAio:
 
     @property
     def splunk_params(self):
-        """Property returns the required Splunk HTTP Headers."""
+        """Property returns the needed Splunk HTTP Parameters."""
 
         params = dict()
         if not self._payload_mode_json:
@@ -447,6 +453,10 @@ class SplunkHecAio:
             params["index"] = self._index
         if self._sourcetype:
             params['sourcetype'] = self._sourcetype
+        if self._source:
+            params['source'] = self._source
+        if self._host:
+            params['host'] = self._host
 
         return params
     
@@ -736,10 +746,10 @@ class SplunkHecAio:
         return self._index
 
     def set_sourcetype(self,value=None):
-        """Set HEC Sourectype Value to use in Post URL parameters (string).
+        """Set HEC Sourcetype Value to use in Post URL parameters (string).
 
         This sets the optional URL parameter sourcetype=... Default is None.
-        Some users may want to specify the target sourcetype in the URL for Post instead of in the event JSON payload.
+        Some users may want to specify the sourcetype in the URL for Post instead of in the event JSON payload.
         This is useful for raw data mode.
 
         Parameters:
@@ -754,7 +764,7 @@ class SplunkHecAio:
             return
    
         self._sourcetype = value
-        self.log.info("Splunk Default Index Set: port={0}".format(value))
+        self.log.info("Splunk Default Sourcetype Set: sourcetype={0}".format(value))
 
     def get_sourcetype(self):
         """Get the HEC default sourcetype optionally used in Post URL (string).
@@ -770,6 +780,79 @@ class SplunkHecAio:
         """
 
         return self._sourcetype
+
+    def set_source(self,value=None):
+        """Set HEC Source Value to use in Post URL parameters (string).
+
+        This sets the optional URL parameter source=... Default is None.
+        Some users may want to specify the source in the URL for Post instead of in the event JSON payload.
+        This is useful for raw data mode.
+
+        Parameters:
+                value (string): Expected format example `mysource`
+        Returns:
+                none
+
+        """
+
+        if not isinstance(value, str):
+            self.log.error("Invalid Value: {0}".format(value))
+            return
+   
+        self._source = value
+        self.log.info("Splunk Default Source Set: source={0}".format(value))
+
+    def get_source(self):
+        """Get the HEC default source optionally used in Post URL (string).
+        
+            Default value is None
+            Value: "mysource"
+
+            Parameters:
+                none
+            Returns:
+                string: value of HEC Default Source Token in URL
+                
+        """
+
+        return self._source
+    
+
+    def set_host(self,value=None):
+        """Set HEC Host Value to use in Post URL parameters (string).
+
+        This sets the optional URL parameter host=... Default is None.
+        Some users may want to specify the host in the URL for Post instead of in the event JSON payload.
+        This is useful for raw data mode.
+
+        Parameters:
+                value (string): Expected format example `myhost`
+        Returns:
+                none
+
+        """
+
+        if not isinstance(value, str):
+            self.log.error("Invalid Value: {0}".format(value))
+            return
+   
+        self._host = value
+        self.log.info("Splunk Default Host Set: host={0}".format(value))
+
+    def get_host(self):
+        """Get the HEC default host optionally used in Post URL (string).
+        
+            Default value is None
+            Value: "myhost"
+
+            Parameters:
+                none
+            Returns:
+                string: value of HEC Default Host Token in URL
+                
+        """
+
+        return self._host
     
     def check_connectivity(self):
         """Checks connectivity to the Splunk API.
