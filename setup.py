@@ -8,7 +8,7 @@ def readme():
 
 setuptools.setup(name='Splunk-HEC-AIO',
       python_requires='>3.5',
-      version='2.0',
+      version='2.1.0',
       description='This is a python class file for use with other python scripts to send events to a Splunk http event collector.',
       long_description=readme(),
       long_description_content_type="text/markdown",
