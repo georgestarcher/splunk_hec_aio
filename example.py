@@ -24,6 +24,8 @@ testHEC.set_port(443)
 # Set Index and Sourctype for Post Parameters. Very helpful when using raw data mode.
 testHEC.set_index("starcher_hec")
 testHEC.set_sourcetype("aio_json")
+testHEC.set_host("dollybean")
+testHEC.set_source("aio_python")
 
 # Setting Post Limits:
 # We set to maximum number of AIO concurrent POSTs

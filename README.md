@@ -88,9 +88,11 @@ I recommend testing your data payloads to determine their maximum size. Then low
 
 Typically when working in Python your data is a list of dictionary (JSON) objects. This class is intended for that as the norm so you can iterate over the data and blast it into Splunk HEC with minimal work. 
 
-If you choose to post raw string lines you will want to set set_payload_json_format to False. Then your payload input to post_data should be a string. To make forcing the index and sourcetype of raw events easier set the index and sourcetype prior to data posting.
+If you choose to post raw string lines you will want to set set_payload_json_format to False. Then your payload input to post_data should be a string. To make forcing the index, sourcetype, host and source of raw events easier set these prior to data posting.
 
     hec_server.index = "test"
     hec_server.sourcetype = "syslog"
+    hec_server.set_host("dollybean")
+    hec_server.set_source("aio_python")
 
 This works for either RAW or JSON. JSON has the option of the normal existing behavior to override per event by placing in the payload. But it is meant for RAW mode as it adds the values to the HEC POST URL parameters.
