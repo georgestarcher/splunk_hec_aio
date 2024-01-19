@@ -2,7 +2,7 @@
     Splunk payload submission class to HTTP collector endpoint
 """
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 import json
 import logging
@@ -449,15 +449,19 @@ class SplunkHecAio:
         params = dict()
         if not self._payload_mode_json:
             params["channel"] = str(uuid.uuid1())
-        if self._index:
+        json_format = self.get_payload_json_format()
+        if self._index and not json_format:
             params["index"] = self._index
-        if self._sourcetype:
+        if self._sourcetype and not json_format:
             params['sourcetype'] = self._sourcetype
-        if self._source:
+        if self._source and not json_format:
             params['source'] = self._source
-        if self._host:
+        if self._host and not json_format:
             params['host'] = self._host
 
+        if not params:
+            return None
+        
         return params
     
     def set_https(self,value=True):
@@ -728,7 +732,7 @@ class SplunkHecAio:
             return
 
         self._index = value
-        self.log.info("Splunk Default Index Set: port={0}".format(value))
+        self.log.info("Splunk Default Index Set: index={0}".format(value))
 
     def get_index(self):
         """Get the HEC default index optionally used in Post URL (string).
@@ -1029,6 +1033,16 @@ class SplunkHecAio:
         # Pop empty fields if feature enabled and Payload mode JSON is True.
         if self._pop_empty_fields and self._payload_mode_json:
             payload = {k:payload.get(k) for k,v in payload.items() if v}
+        json_format = self.get_payload_json_format()
+
+        if json_format and self._host:
+            payload.update({"host":self._host})
+        if json_format and self._source:
+            payload.update({"source":self._source})
+        if json_format and self._sourcetype:
+            payload.update({"sourcetype":self._sourcetype})
+        if json_format and self._index:
+            payload.update({"index":self._index})
 
         # Convert payload to string of json.
         payloadString = json.dumps(payload,default=str)
