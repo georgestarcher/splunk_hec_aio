@@ -1,6 +1,6 @@
 # Python Class for Sending Events to Splunk HTTP Event Collector
 
-Version/Date: 2.1.0 2024-01-01
+Version/Date: 2.1.1 2024-01-18
 
 Author: George Starcher (starcher)
 Email: george@georgestarcher.com
@@ -95,4 +95,12 @@ If you choose to post raw string lines you will want to set set_payload_json_for
     hec_server.set_host("dollybean")
     hec_server.set_source("aio_python")
 
-This works for either RAW or JSON. JSON has the option of the normal existing behavior to override per event by placing in the payload. But it is meant for RAW mode as it adds the values to the HEC POST URL parameters.
+This works for either RAW or JSON. The class will automatically set the above fields on your JSON payload for you if used and in JSON mode. Otherwise it adds the values to the RAW URL endpoint as needed by Splunk.
+
+### 400 Bad Request
+
+If you are receiving `400 Bad Request` and you are setting an index confirm the index you are attempting to send to is in the allowed list for your HEC Token.
+
+### Default Splunk
+
+If you are testing with an out of box Splunk install. You are still using the self signed certificates. Make sure you set `set_verify_tls(False)` on your HEC object during setup.
