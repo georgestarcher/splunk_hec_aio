@@ -24,15 +24,13 @@ Instantiate a copy of the SplunkHecAio object and use to generate and submit pay
 
 ### Configuration: With pip
 
-    pip3 install git+git://github.com/georgestarcher/splunk_hec_aio.git
+    pip3 install git+https://github.com/georgestarcher/splunk_hec_aio.git
 
 ### Example:
 
         import logging
         import sys
         import time
-        import json
-
         from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
         # help(SplunkHecAio)
@@ -73,7 +71,6 @@ Instantiate a copy of the SplunkHecAio object and use to generate and submit pay
             testJSON.update({"event":{"count":i,"name":"dolly bean"}})
             testJSON.update({"time":str(round(time.time(),3))})
             testHec.post_data(testJSON)
-            payloadLength = len(json.dumps(testJSON))
 
         # Always call flush method to ensure last data is posted to Splunk HEC
         testHec.flush()
@@ -82,7 +79,7 @@ Instantiate a copy of the SplunkHecAio object and use to generate and submit pay
 
 ### Post Performance:
 
-I recommend testing your data payloads to determine their maximum size. Then lower the set_post_max_byte_size down to get in the range of 100-200 events per HTTP post. This helps spread the workload across the AIO HTTP posts for performance. The default set_post_max_byte_size is 512000. So lower it if your max event payload is notably smaller. Raise as needed up to the 800000 maximum. Then if needed adjust set_concurrent_post_limit. Maximum is 20 AIO concurrent posts, default is 10.  You could run in DEUG Logging to see the post spread across when first developing your code.
+I recommend testing your data payloads to determine their maximum size. Then lower the set_post_max_byte_size down to get in the range of 100-200 events per HTTP post. This helps spread the workload across the AIO HTTP posts for performance. The default set_post_max_byte_size is 512000. So lower it if your max event payload is notably smaller. Raise as needed up to the 800000 maximum. Then if needed adjust set_concurrent_post_limit. Maximum is 20 AIO concurrent posts, default is 10.  You could run in DEBUG Logging to see the post spread across when first developing your code.
 
 ### JSON vs RAW mode:
 
