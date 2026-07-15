@@ -3,8 +3,6 @@ description: Report a reproducible problem with splunk_hec_aio
 title: "[Bug]: "
 labels:
   - bug
-projects:
-  - georgestarcher/2
 body:
   - type: markdown
     attributes:

@@ -3,8 +3,6 @@ description: Propose a backward-compatible improvement to splunk_hec_aio
 title: "[Feature]: "
 labels:
   - enhancement
-projects:
-  - georgestarcher/2
 body:
   - type: markdown
     attributes:
