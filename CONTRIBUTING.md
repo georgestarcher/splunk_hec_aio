@@ -170,3 +170,16 @@ request bytes or endpoint semantics change.
 
 Repository-wide formatting, packaging, dependency, or Python-version changes
 should not be bundled with an unrelated bug fix.
+
+## Review automated dependency updates
+
+Dependabot checks Python manifests and pinned quality tools each Monday at
+09:00 America/Chicago, followed by GitHub Actions at 09:30. Minor and patch
+updates are grouped by runtime, quality tooling, and Actions to limit pull
+request noise; major updates remain separate for deliberate compatibility
+review.
+
+Treat each automated update like any other pull request: inspect upstream
+release notes, classify compatibility, require the protected checks, and keep
+runtime dependency changes separate from behavior changes. Never merge an
+update solely because its version is newer or its initial CI run is green.
