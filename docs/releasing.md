@@ -10,7 +10,7 @@ environment.
 
 ## Distribution policy
 
-The final planned v2 release, v2.1.2, will use GitHub Releases only. Existing
+The final planned v2 release, v2.1.2, uses GitHub Releases only. Existing
 releases and tags remain available and must never be deleted, overwritten,
 force-moved, or retagged. PyPI is not an established distribution channel for
 the v2 line, so the dry run has no package-index credentials or publishing
@@ -65,11 +65,11 @@ python -m build
 python -m twine check dist/*
 python tests/packaging/verify_artifacts.py dist/*
 python .github/scripts/verify_release_candidate.py validate \
-  --version 2.1.1 \
+  --version 2.1.2 \
   --classification no-observable-behavior-change \
   --ref refs/heads/main
 python .github/scripts/verify_release_candidate.py manifest \
-  --version 2.1.1 \
+  --version 2.1.2 \
   --classification no-observable-behavior-change \
   --ref refs/heads/main \
   --commit "$(git rev-parse HEAD)" \
@@ -78,8 +78,8 @@ python .github/scripts/verify_release_candidate.py manifest \
   dist/*
 ```
 
-Use the actual candidate version in place of `2.1.1`. Local output is only
-diagnostic evidence; the GitHub-hosted dry run remains the release gate.
+These commands target the v2.1.2 candidate. Local output is only diagnostic
+evidence; the GitHub-hosted dry run remains the release gate.
 
 ## Publish an approved v2.1.2 candidate
 

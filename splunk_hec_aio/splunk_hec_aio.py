@@ -2,7 +2,7 @@
     Splunk payload submission class to HTTP collector endpoint
 """
 
-__version__ = "2.1.1"
+__version__ = "2.1.2"
 
 import json
 import logging

@@ -83,3 +83,8 @@ checkout. Python 3.9 is the established bootstrap target and Python 3.13 is an
 additional evidenced packaging target. These checks do not infer that versions
 between the declared `python_requires` bound and the tested targets are fully
 supported; the complete supported range remains tracked separately.
+
+Version 2.1.2 is the final planned legacy-compatible v2 release. Future
+development moves to v3, where Python 3.9 remains the legacy compatibility
+anchor and Python 3.13 the modern Splunk-aligned anchor. The exact v3 minimum
+must be declared before v3 is released.

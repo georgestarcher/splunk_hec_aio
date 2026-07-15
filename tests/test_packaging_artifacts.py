@@ -15,13 +15,13 @@ SPEC.loader.exec_module(verify_artifacts)
 
 class TestPackagingArtifactPolicy(unittest.TestCase):
     def test_artifact_version_defaults_to_the_authoritative_runtime_source(self):
-        self.assertEqual(verify_artifacts.read_source_version(ROOT), "2.1.1")
+        self.assertEqual(verify_artifacts.read_source_version(ROOT), "2.1.2")
 
-    def test_metadata_verification_honors_a_supplied_future_version(self):
+    def test_metadata_verification_honors_a_supplied_candidate_version(self):
         metadata = MagicMock()
         values = {
             "Name": "Splunk-HEC-AIO",
-            "Version": "2.1.2",
+            "Version": "2.1.3",
             "Summary": (
                 "This is a python class file for use with other python scripts to "
                 "send events to a Splunk http event collector."
@@ -47,7 +47,7 @@ class TestPackagingArtifactPolicy(unittest.TestCase):
         }.get(key, default)
 
         self.assertIsNone(
-            verify_artifacts.verify_metadata(metadata, "candidate", "2.1.2")
+            verify_artifacts.verify_metadata(metadata, "candidate", "2.1.3")
         )
 
     def test_common_contents_reject_local_generated_and_credential_files(self):

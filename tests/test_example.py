@@ -47,12 +47,12 @@ class TestReadmeQuickStart(unittest.TestCase):
         self.assertEqual(payload["event"]["message"], "hello from splunk_hec_aio")
         sender.flush.assert_called_once_with()
 
-    def test_readme_distinguishes_current_and_planned_releases(self):
+    def test_readme_documents_the_final_legacy_release(self):
         readme = README_PATH.read_text(encoding="utf-8")
 
         self.assertNotIn("Version/Date:", readme)
         self.assertIn("latest published release", readme)
-        self.assertIn("splunk_hec_aio.git@v2.1.1", readme)
+        self.assertIn("splunk_hec_aio.git@v2.1.2", readme)
         self.assertIn("final planned legacy-compatible v2", readme)
 
 
