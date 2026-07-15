@@ -25,6 +25,23 @@ Additional project documentation:
 - [Security policy](SECURITY.md)
 - [Modernization roadmap](https://github.com/users/georgestarcher/projects/2)
 
+## Release verification
+
+Maintainers can run the **Release verification** GitHub Actions workflow
+manually from `main`. It reuses the complete compatibility, quality, and
+packaging checks, builds the exact wheel and source distribution, installs
+both artifacts outside the checkout, and produces a temporary bundle with
+SHA-256 checksums and a manifest tied to the candidate commit and v2
+compatibility classification.
+
+This workflow is a read-only dry run. It cannot create or move a tag, publish a
+GitHub release, upload to PyPI, or change the installed module. The final
+planned v2.1.2 release will keep the existing GitHub Releases distribution
+channel and preserve all prior releases. See
+[`docs/releasing.md`](docs/releasing.md) for the workflow inputs, evidence
+review, protected live Splunk check, final publication prerequisites, and
+recovery policy.
+
 ## Description:
 
 This is a python class file for use with other python scripts to send events to a Splunk http event collector.
