@@ -4,10 +4,10 @@ An asynchronous Python client for batching and sending JSON or raw events to a
 Splunk HTTP Event Collector (HEC).
 
 The latest published release is
-[`v2.1.1`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.1).
-The repository is being hardened for the final planned legacy-compatible v2
-release, v2.1.2; until that release is tagged, the installed module version
-remains `2.1.1`. Existing releases remain available on the
+[`v2.1.2`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.2).
+It is the final planned legacy-compatible v2 release. The previous
+[`v2.1.1`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.1)
+release and all other existing releases remain available on the
 [GitHub Releases page](https://github.com/georgestarcher/splunk_hec_aio/releases).
 
 Maintained by George Starcher (starcher). Licensed under the
@@ -27,7 +27,7 @@ tag when installing the current stable release:
 
 ```shell
 python -m pip install \
-  "git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.1"
+  "git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.2"
 ```
 
 Installing from untagged `main` opts into unreleased repository changes. For a
@@ -84,6 +84,10 @@ local baseline-test command are documented in
 Contributor setup and review requirements are documented in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Future development moves to v3. Python 3.9 remains the legacy compatibility
+anchor and Python 3.13 the modern Splunk-aligned anchor; the exact v3 minimum
+will be declared before v3 is released.
+
 Additional project documentation:
 
 - [Changelog](CHANGELOG.md)
@@ -107,8 +111,8 @@ GitHub release, upload to PyPI, or change the installed module. A separate
 approval-gated publication workflow accepts only that exact verified bundle
 after it matches a GitHub-verified signed tag. Future releases are immutable,
 so their tags, assets, and generated provenance cannot be replaced after
-publication. The final planned v2.1.2 release will keep the existing GitHub
-Releases distribution channel and preserve all prior releases. See
+publication. The final planned v2.1.2 release keeps the existing GitHub
+Releases distribution channel and preserves all prior releases. See
 [`docs/releasing.md`](docs/releasing.md) for the workflow inputs, evidence
 review, protected live Splunk check, signed-tag and publication procedure, and
 recovery policy.

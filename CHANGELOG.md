@@ -7,6 +7,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-07-15
+
+This is the final planned legacy-compatible v2 release. It preserves the
+v2.1.1 public API and observable runtime behavior; the installed module changes
+only its authoritative version identifier from `2.1.1` to `2.1.2`.
+
 ### Added
 
 - A written v2 backward-compatibility contract.
@@ -49,16 +55,18 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Updated the MIT copyright notice to cover 2023-2026.
 - Linked compatibility, contribution, license, changelog, and example guidance
   from the README.
-- Made the runtime module version the authoritative distribution version while
-  preserving version `2.1.1`, the distribution name, dependency declarations,
-  `python_requires`, package location, and documented nested import.
+- Made the runtime module version the authoritative distribution version and
+  changed that identifier from `2.1.1` to `2.1.2` while preserving the
+  distribution name, dependency declarations, `python_requires`, package
+  location, and documented nested import.
 - Updated the Python 3.9-compatible packaging frontend and constrained
   Dependabot from proposing releases that require Python 3.10.
 - Moved the historical network-dependent test module out of the installed
   package and into `tests/legacy/`.
-- Reworked the README to distinguish the current release from planned v2.1.2,
-  pin stable installation to a release tag, and provide secret-safe setup,
-  product, payload-mode, performance, and TLS guidance.
+- Reworked the README to distinguish the previous v2.1.1 release from the
+  final planned v2.1.2 release, pin stable installation to a release tag, and
+  provide secret-safe setup, product, payload-mode, performance, and TLS
+  guidance.
 
 ### Removed
 
@@ -88,7 +96,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 - Initial public v2 release of the asynchronous Splunk HEC sender.
 
-[Unreleased]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.2...HEAD
+[2.1.2]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.0.0

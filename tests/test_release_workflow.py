@@ -91,18 +91,18 @@ class TestReleaseCandidateHelper(unittest.TestCase):
     def test_current_source_is_valid_for_a_nonbreaking_main_candidate(self):
         result = verify_release_candidate.validate_source(
             ROOT,
-            "2.1.1",
+            "2.1.2",
             "no-observable-behavior-change",
             "refs/heads/main",
         )
 
-        self.assertEqual(result["version"], "2.1.1")
+        self.assertEqual(result["version"], "2.1.2")
 
     def test_source_validation_rejects_wrong_ref_version_and_classification(self):
         cases = (
-            ("2.1.1", "no-observable-behavior-change", "refs/heads/topic"),
-            ("2.1.2", "no-observable-behavior-change", "refs/heads/main"),
-            ("2.1.1", "breaking-change", "refs/heads/main"),
+            ("2.1.2", "no-observable-behavior-change", "refs/heads/topic"),
+            ("2.1.1", "no-observable-behavior-change", "refs/heads/main"),
+            ("2.1.2", "breaking-change", "refs/heads/main"),
         )
         for version, classification, ref in cases:
             with self.subTest(version=version, classification=classification, ref=ref):
