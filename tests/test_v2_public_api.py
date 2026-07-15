@@ -41,8 +41,8 @@ class TestV2PublicApi(unittest.TestCase):
         self.assertEqual(expected.pop("baseline_version"), "2.1.1")
         self.assertEqual(public_api_snapshot(), expected)
 
-    def test_version_remains_available_in_the_v2_line(self):
-        self.assertRegex(module.__version__, r"^2\.[0-9]+\.[0-9]+$")
+    def test_v3_development_version_is_exposed_from_the_runtime_module(self):
+        self.assertEqual(module.__version__, "3.0.0.dev0")
 
 
 if __name__ == "__main__":

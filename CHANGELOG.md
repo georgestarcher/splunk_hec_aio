@@ -7,6 +7,25 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Linux runtime coverage for Python 3.10, 3.11, and 3.12, alongside the
+  cross-platform Python 3.9 and 3.13 compatibility anchors.
+
+### Changed
+
+- Began the v3 development line at `3.0.0.dev0` while retaining v2.1.2 as the
+  immutable final legacy-compatible v2 release.
+- Set the v3 supported-Python contract to Python 3.9 and later, with Python
+  3.13 as the primary modern tooling target and classifiers for every supported
+  Python minor version.
+- Marked development artifacts as alpha builds and updated metadata, artifact
+  verification, contributor guidance, and release documentation for the new
+  support matrix.
+- Preserved v2.1.2 dependencies, nested import identity, public API snapshot,
+  request behavior, and runtime implementation; only the authoritative version
+  identifier changes in the installed module for this foundation update.
+
 ## [2.1.2] - 2026-07-15
 
 This is the final planned legacy-compatible v2 release. It preserves the

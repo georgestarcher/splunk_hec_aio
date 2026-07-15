@@ -9,6 +9,8 @@ It is the final planned legacy-compatible v2 release. The previous
 [`v2.1.1`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.1)
 release and all other existing releases remain available on the
 [GitHub Releases page](https://github.com/georgestarcher/splunk_hec_aio/releases).
+The `main` branch is now the unreleased v3 development line and reports
+`3.0.0.dev0`.
 
 Maintained by George Starcher (starcher). Licensed under the
 [MIT License](LICENSE).
@@ -30,9 +32,10 @@ python -m pip install \
   "git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.2"
 ```
 
-Installing from untagged `main` opts into unreleased repository changes. For a
-local checkout used for development, follow the environment and test commands
-in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Installing from untagged `main` opts into the v3 prerelease, which requires
+Python 3.9 or later and is not a stable release. For a local checkout used for
+development, follow the environment and test commands in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Quick start
 
@@ -77,16 +80,18 @@ from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
 ## Compatibility and project documentation
 
-The v2 release line preserves the released public API and existing user
-behavior while the repository is modernized. The compatibility policy and
-local baseline-test command are documented in
+The immutable v2.1.2 release preserves the released public API and existing
+user behavior. The v3 development line currently preserves that API and
+behavior while establishing its supported-Python baseline. The compatibility
+policy and local baseline-test command are documented in
 [`docs/compatibility.md`](docs/compatibility.md).
 Contributor setup and review requirements are documented in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Future development moves to v3. Python 3.9 remains the legacy compatibility
-anchor and Python 3.13 the modern Splunk-aligned anchor; the exact v3 minimum
-will be declared before v3 is released.
+V3 supports Python 3.9 and later. Python 3.9 is the compatibility floor and
+Python 3.13 is the primary modern Splunk-aligned target. CI tests both anchors
+across Linux, macOS, and Windows and exercises Python 3.10 through 3.12 on
+Linux.
 
 Additional project documentation:
 
@@ -115,7 +120,8 @@ publication. The final planned v2.1.2 release keeps the existing GitHub
 Releases distribution channel and preserves all prior releases. See
 [`docs/releasing.md`](docs/releasing.md) for the workflow inputs, evidence
 review, protected live Splunk check, signed-tag and publication procedure, and
-recovery policy.
+recovery policy. The stable release path accepts only `X.Y.Z` versions, so it
+intentionally rejects the current `3.0.0.dev0` development version.
 
 ## Notes
 

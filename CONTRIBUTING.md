@@ -21,9 +21,8 @@ URLs, or sensitive event data in an issue, test, log, or pull request.
 
 ## Set up a development environment
 
-Create a virtual environment using a Python version that the project currently
-supports. The exact supported range is being established by compatibility
-testing; do not infer a new minimum version from development-tool requirements.
+Create a virtual environment using Python 3.9 or later. Python 3.9 is the v3
+compatibility floor and Python 3.13 is the primary modern tooling target.
 
 ```shell
 python -m venv .venv
@@ -57,15 +56,13 @@ The compatibility suite must remain deterministic, secret-free, and isolated
 from public networks. It must not require a Splunk host or token. The legacy
 test module under `tests/legacy/` contains live-network tests and is not the
 standard contributor test command. The required bootstrap job runs on Linux
-with Python 3.9. Additional runtime jobs cover Linux on Python 3.13 and macOS
-and Windows on both Python 3.9 and 3.13. These evidence-backed Splunk anchors
-do not by themselves establish the project's minimum or complete supported
-Python range.
+with Python 3.9. Additional runtime jobs cover Python 3.10 through 3.13 on
+Linux and both Python 3.9 and 3.13 on macOS and Windows.
 
 ## Run the quality suite
 
 The quality tools run on Python 3.13 while checking code against a Python 3.9
-syntax target. This keeps current development tooling separate from the v2
+syntax target. This keeps current development tooling separate from the v3
 runtime floor. Install the pinned quality tools and runtime dependencies in a
 dedicated environment:
 
@@ -114,8 +111,8 @@ python tests/packaging/verify_artifacts.py dist/*
 The **Packaging** GitHub Actions workflow additionally installs the wheel and
 source distribution into separate clean environments, changes to a directory
 outside the checkout, and checks the documented nested import and v2.1.1 API
-snapshot. Python 3.9 and 3.13 are evidence-backed CI targets; they do not yet
-establish the project's minimum or complete supported range.
+snapshot. Python 3.9 and 3.13 are the packaging anchors for the supported v3
+range.
 
 ## Verify a release candidate
 
@@ -164,7 +161,7 @@ retries can result in at-least-once delivery; zero matches fails. Failure
 artifacts contain only a bounded status, attempt number, exit code, and match
 count—not tokens, endpoints, event bodies, SPL, or raw search results.
 
-## Preserve the v2 contract
+## Preserve the v2 baseline during v3 development
 
 Read [`docs/compatibility.md`](docs/compatibility.md) before changing public or
 wire-visible behavior. Pull requests must classify the change as one of:
@@ -175,8 +172,8 @@ wire-visible behavior. Pull requests must classify the change as one of:
 4. breaking change.
 
 Existing imports, public method signatures, defaults, synchronous entry points,
-return values, exception behavior, and supported Python versions remain stable
-in v2 unless an approved compatibility path says otherwise.
+return values, and exception behavior remain at the v2.1.2 baseline until a
+focused v3 issue approves, tests, and documents a change.
 
 Characterization tests describe what v2.1.1 does, including behavior that may
 have a separate corrective issue. Do not silently rewrite a characterization

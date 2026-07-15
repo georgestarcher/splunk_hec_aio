@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / ".github" / "scripts" / "verify_release_candidate.py"
 RELEASE_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "release-verification.yml"
 PUBLICATION_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "release-publication.yml"
+RELEASE_DOCUMENTATION_PATH = ROOT / "docs" / "releasing.md"
 REUSABLE_WORKFLOW_PATHS = (
     ROOT / ".github" / "workflows" / "compatibility.yml",
     ROOT / ".github" / "workflows" / "quality.yml",
@@ -88,15 +89,14 @@ def write_fake_artifacts(directory: Path, version: str):
     HELPER_PATH.is_file(), "repository-only release helper is unavailable"
 )
 class TestReleaseCandidateHelper(unittest.TestCase):
-    def test_current_source_is_valid_for_a_nonbreaking_main_candidate(self):
-        result = verify_release_candidate.validate_source(
-            ROOT,
-            "2.1.2",
-            "no-observable-behavior-change",
-            "refs/heads/main",
-        )
-
-        self.assertEqual(result["version"], "2.1.2")
+    def test_current_development_source_is_not_a_stable_release_candidate(self):
+        with self.assertRaisesRegex(SystemExit, "stable semantic version"):
+            verify_release_candidate.validate_source(
+                ROOT,
+                "3.0.0.dev0",
+                "no-observable-behavior-change",
+                "refs/heads/main",
+            )
 
     def test_source_validation_rejects_wrong_ref_version_and_classification(self):
         cases = (
@@ -278,6 +278,20 @@ class TestReleaseCandidateHelper(unittest.TestCase):
     "repository-only release-verification policy assets are unavailable",
 )
 class TestReleaseWorkflowPolicy(unittest.TestCase):
+    def test_historical_v2_reproduction_uses_the_matching_signed_tag(self):
+        documentation = RELEASE_DOCUMENTATION_PATH.read_text(encoding="utf-8")
+        section = documentation.split(
+            "## Reproduce the historical v2.1.2 artifact checks locally", 1
+        )[1].split("## Historical v2.1.2 publication procedure", 1)[0]
+
+        self.assertIn("signed `v2.1.2` tag", section)
+        self.assertIn("v3 development branch", section)
+        self.assertIn("git tag -v v2.1.2", section)
+        self.assertIn(
+            "git worktree add --detach ../splunk-hec-aio-v2.1.2 v2.1.2",
+            section,
+        )
+
     def test_release_workflow_is_manual_read_only_and_nonpublishing(self):
         workflow = RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
 

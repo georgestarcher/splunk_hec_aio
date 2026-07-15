@@ -14,6 +14,18 @@ EXPECTED_RUNTIME_MODULES = {
     "splunk_hec_aio/splunk_hec_aio.py",
 }
 EXPECTED_RUNTIME_REQUIREMENTS = {"aiohttp", "aiohttp-retry"}
+EXPECTED_CLASSIFIERS = {
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Logging",
+}
 EXPECTED_PROJECT_URLS = {
     "Documentation": "https://github.com/georgestarcher/splunk_hec_aio#readme",
     "Issues": "https://github.com/georgestarcher/splunk_hec_aio/issues",
@@ -84,7 +96,7 @@ def verify_metadata(metadata, artifact, expected_version):
             "send events to a Splunk http event collector."
         ),
         "Keywords": "splunk hec aio",
-        "Requires-Python": ">3.5",
+        "Requires-Python": ">=3.9",
         "License": "MIT",
     }
     for key, value in expected.items():
@@ -94,6 +106,10 @@ def verify_metadata(metadata, artifact, expected_version):
                     artifact, key, value, metadata.get(key)
                 )
             )
+
+    classifiers = set(metadata.get_all("Classifier", []))
+    if classifiers != EXPECTED_CLASSIFIERS:
+        fail("{}: classifiers changed: {!r}".format(artifact, classifiers))
 
     runtime_requirements = {
         normalized_requirement(value)
