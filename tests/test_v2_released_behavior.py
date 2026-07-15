@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import unittest
 import uuid
@@ -8,6 +9,10 @@ from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
 class TestV2ReleasedBehavior(unittest.TestCase):
     def setUp(self):
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
+        self.addCleanup(self._close_event_loop)
+
         self.sender = SplunkHecAio("splunk.example", "test-token")
         self.sender.log.setLevel(logging.CRITICAL)
         self.client_session = patch(
@@ -16,6 +21,10 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         )
         self.client_session.start()
         self.addCleanup(self.client_session.stop)
+
+    def _close_event_loop(self):
+        asyncio.set_event_loop(None)
+        self.event_loop.close()
 
     def test_constructor_and_configuration_defaults(self):
         self.assertEqual(self.sender.host, "splunk.example")
@@ -151,6 +160,8 @@ class TestV2ReleasedBehavior(unittest.TestCase):
             "zero": 0,
             "false": False,
             "empty": "",
+            "empty_list": [],
+            "empty_dict": {},
             "none": None,
         }
 
@@ -164,6 +175,8 @@ class TestV2ReleasedBehavior(unittest.TestCase):
                 "zero": 0,
                 "false": False,
                 "empty": "",
+                "empty_list": [],
+                "empty_dict": {},
                 "none": None,
             },
         )
