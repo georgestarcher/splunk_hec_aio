@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
 ROOT = Path(__file__).resolve().parents[1]
 VERIFIER_PATH = ROOT / "tests" / "packaging" / "verify_artifacts.py"
@@ -13,6 +14,42 @@ SPEC.loader.exec_module(verify_artifacts)
 
 
 class TestPackagingArtifactPolicy(unittest.TestCase):
+    def test_artifact_version_defaults_to_the_authoritative_runtime_source(self):
+        self.assertEqual(verify_artifacts.read_source_version(ROOT), "2.1.1")
+
+    def test_metadata_verification_honors_a_supplied_future_version(self):
+        metadata = MagicMock()
+        values = {
+            "Name": "Splunk-HEC-AIO",
+            "Version": "2.1.2",
+            "Summary": (
+                "This is a python class file for use with other python scripts to "
+                "send events to a Splunk http event collector."
+            ),
+            "Keywords": "splunk hec aio",
+            "Requires-Python": ">3.5",
+            "License": "MIT",
+        }
+        metadata.get.side_effect = values.get
+        metadata.get_all.side_effect = lambda key, default=None: {
+            "Requires-Dist": [
+                "aiohttp",
+                "aiohttp-retry",
+                'build; extra == "dev"',
+                'twine; extra == "dev"',
+            ],
+            "Provides-Extra": ["dev"],
+            "Project-URL": [
+                "Documentation, https://github.com/georgestarcher/splunk_hec_aio#readme",
+                "Issues, https://github.com/georgestarcher/splunk_hec_aio/issues",
+                "Source, https://github.com/georgestarcher/splunk_hec_aio",
+            ],
+        }.get(key, default)
+
+        self.assertIsNone(
+            verify_artifacts.verify_metadata(metadata, "candidate", "2.1.2")
+        )
+
     def test_common_contents_reject_local_generated_and_credential_files(self):
         forbidden = (
             "project/.venv/bin/python",

@@ -165,8 +165,9 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
     def test_release_workflow_verifies_exact_artifacts_and_uploads_evidence(self):
         workflow = RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("verify_artifacts.py dist/*", workflow)
+        self.assertIn("verify_artifacts.py", workflow)
         self.assertIn("verify_installed_distribution.py", workflow)
+        self.assertEqual(workflow.count('--expected-version "$CANDIDATE_VERSION"'), 2)
         self.assertIn("verify_release_candidate.py manifest", workflow)
         self.assertIn("sha256sum --check --strict SHA256SUMS", workflow)
         self.assertIn(

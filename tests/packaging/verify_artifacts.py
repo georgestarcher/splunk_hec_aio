@@ -1,7 +1,8 @@
 """Verify distribution metadata and file contents without installing it."""
 
+import argparse
+import ast
 import re
-import sys
 import tarfile
 import zipfile
 from email.parser import BytesParser
@@ -43,6 +44,7 @@ FORBIDDEN_NAMES = {
     "splunkresults.json",
 }
 FORBIDDEN_SUFFIXES = (".key", ".p12", ".pem", ".pfx", ".pyc", ".pyo")
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def fail(message: str) -> NoReturn:
@@ -54,10 +56,29 @@ def normalized_requirement(requirement):
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def verify_metadata(metadata, artifact):
+def read_source_version(root: Path) -> str:
+    path = root / "splunk_hec_aio" / "splunk_hec_aio.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    versions = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "__version__"
+            for target in node.targets
+        ):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            versions.append(node.value.value)
+    if len(versions) != 1:
+        fail("runtime module must define exactly one literal __version__")
+    return versions[0]
+
+
+def verify_metadata(metadata, artifact, expected_version):
     expected = {
         "Name": "Splunk-HEC-AIO",
-        "Version": "2.1.1",
+        "Version": expected_version,
         "Summary": (
             "This is a python class file for use with other python scripts to "
             "send events to a Splunk http event collector."
@@ -119,7 +140,7 @@ def verify_common_contents(names, artifact):
             )
 
 
-def verify_wheel(path):
+def verify_wheel(path, expected_version):
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         metadata_name = next(
@@ -129,7 +150,7 @@ def verify_wheel(path):
             fail("{}: wheel metadata is missing".format(path))
         metadata = BytesParser().parsebytes(archive.read(metadata_name))
 
-    verify_metadata(metadata, path)
+    verify_metadata(metadata, path, expected_version)
     verify_common_contents(names, path)
 
     runtime_modules = {
@@ -143,7 +164,7 @@ def verify_wheel(path):
         fail("{}: tests must not be installed by the wheel".format(path))
 
 
-def verify_sdist(path):
+def verify_sdist(path, expected_version):
     with tarfile.open(path, "r:gz") as archive:
         names = archive.getnames()
         roots = {PurePosixPath(name).parts[0] for name in names if name}
@@ -159,7 +180,7 @@ def verify_sdist(path):
             fail("{}: sdist metadata is missing".format(path))
         metadata = BytesParser().parsebytes(metadata_file.read())
 
-    verify_metadata(metadata, path)
+    verify_metadata(metadata, path, expected_version)
     verify_common_contents(names, path)
 
     required = {
@@ -180,17 +201,26 @@ def verify_sdist(path):
         fail("{}: legacy tests remain inside the runtime package".format(path))
 
 
-def main(arguments):
-    artifacts = [Path(argument) for argument in arguments]
+def parse_arguments(arguments=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--expected-version")
+    parser.add_argument("artifacts", nargs="+")
+    return parser.parse_args(arguments)
+
+
+def main(arguments=None):
+    options = parse_arguments(arguments)
+    expected_version = options.expected_version or read_source_version(ROOT)
+    artifacts = [Path(argument) for argument in options.artifacts]
     wheels = [path for path in artifacts if path.suffix == ".whl"]
     sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
     if len(wheels) != 1 or len(sdists) != 1 or len(artifacts) != 2:
         fail("expected exactly one wheel and one .tar.gz sdist")
 
-    verify_wheel(wheels[0])
-    verify_sdist(sdists[0])
+    verify_wheel(wheels[0], expected_version)
+    verify_sdist(sdists[0], expected_version)
     print("Verified wheel and sdist metadata and contents.")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
