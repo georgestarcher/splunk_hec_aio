@@ -42,6 +42,12 @@ Run that coverage gate from the repository root with:
 python -m pytest --cov=splunk_hec_aio --cov-branch --cov-report=term-missing --cov-fail-under=70
 ```
 
+`property/` contains bounded, deterministic Hypothesis checks for queue FIFO
+behavior, JSON and raw transport round trips, and preservation across batching
+boundaries. It intentionally has no `__init__.py`: pytest collects it in the
+Python 3.13 quality environment, while the Python 3.9 unittest compatibility
+suite remains free of modern tooling dependencies.
+
 `test_live_integration_support.py` tests the live-workflow helper, query
 template, and security boundaries entirely offline. The real HEC send and
 querysplunk search run only from the manually approved GitHub Actions workflow.
