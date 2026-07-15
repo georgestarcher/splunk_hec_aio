@@ -49,9 +49,11 @@ python -m unittest discover -s tests -v
 The compatibility suite must remain deterministic, secret-free, and isolated
 from public networks. It must not require a Splunk host or token. The legacy
 test module under `tests/legacy/` contains live-network tests and is not the
-standard contributor test command. CI initially runs this suite on Python 3.9,
-which is an observed bootstrap target and does not establish the project's
-minimum or complete supported Python range.
+standard contributor test command. The required bootstrap job runs on Linux
+with Python 3.9. Additional runtime jobs cover Linux on Python 3.13 and macOS
+and Windows on both Python 3.9 and 3.13. These evidence-backed Splunk anchors
+do not by themselves establish the project's minimum or complete supported
+Python range.
 
 ## Run the quality suite
 

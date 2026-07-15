@@ -24,6 +24,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   preservation in the modern quality environment.
 - Low-noise weekly Dependabot updates for Python dependencies, quality tools,
   and pinned GitHub Actions.
+- Secret-free runtime compatibility coverage on Linux, macOS, and Windows at
+  the Python 3.9 and 3.13 Splunk-aligned anchors.
 
 ### Changed
 

@@ -37,4 +37,56 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Run v2 compatibility baseline
-        run: PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s tests -v
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONWARNINGS: error
+        run: python -m unittest discover -s tests -v
+
+  runtime-matrix:
+    name: Runtime / ${{ matrix.platform }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux
+            os: ubuntu-latest
+            python-version: "3.13"
+          - platform: macOS
+            os: macos-latest
+            python-version: "3.9"
+          - platform: macOS
+            os: macos-latest
+            python-version: "3.13"
+          - platform: Windows
+            os: windows-latest
+            python-version: "3.9"
+          - platform: Windows
+            os: windows-latest
+            python-version: "3.13"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Report runtime
+        run: python -c "import platform, sys; print(platform.platform()); print(sys.version)"
+
+      - name: Install runtime requirements
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Run v2 runtime compatibility suite
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTHONWARNINGS: error
+        run: python -m unittest discover -s tests -v
