@@ -30,6 +30,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   the maintained root example.
 - A security policy, private vulnerability-reporting route, and security-aware
   public issue routing.
+- A read-only manual release-verification workflow that reuses the protected
+  compatibility, quality, and packaging gates, verifies the exact wheel and
+  source distribution, and uploads a temporary checksummed candidate manifest.
+- Release documentation for the GitHub-Releases-only final v2 policy, protected
+  live verification, publication prerequisites, and no-overwrite recovery.
 
 ### Changed
 
@@ -45,6 +50,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Dependabot from proposing releases that require Python 3.10.
 - Moved the historical network-dependent test module out of the installed
   package and into `tests/legacy/`.
+- Reworked the README to distinguish the current release from planned v2.1.2,
+  pin stable installation to a release tag, and provide secret-safe setup,
+  product, payload-mode, performance, and TLS guidance.
 
 ### Removed
 

@@ -42,7 +42,7 @@ exclude = ["splunk_hec_aio/splunk_hec_aio.py"]
 
 [tool.mypy]
 python_version = "3.9"
-files = [".github/scripts/live_hec_smoke.py", "tests/packaging"]
+files = [".github/scripts", "tests/packaging"]
 check_untyped_defs = true
 follow_imports = "skip"
 ignore_missing_imports = true

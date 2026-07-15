@@ -1,5 +1,7 @@
 """Verify an installed artifact from a working directory outside the checkout."""
 
+import argparse
+import ast
 import os
 import re
 from importlib import metadata, util
@@ -14,10 +16,37 @@ def normalized_requirement(requirement):
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def main():
+def read_source_version(checkout: Path) -> str:
+    path = checkout / "splunk_hec_aio" / "splunk_hec_aio.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    versions = []
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "__version__"
+            for target in node.targets
+        ):
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            versions.append(node.value.value)
+    if len(versions) != 1:
+        raise SystemExit("runtime module must define exactly one literal __version__")
+    return versions[0]
+
+
+def parse_arguments(arguments=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--expected-version")
+    return parser.parse_args(arguments)
+
+
+def main(arguments=None):
+    options = parse_arguments(arguments)
     distribution = metadata.distribution("Splunk-HEC-AIO")
     package_path = Path(module.__file__).resolve()
     checkout = Path(os.environ["SOURCE_CHECKOUT"]).resolve()
+    expected_version = options.expected_version or read_source_version(checkout)
 
     try:
         package_path.relative_to(checkout)
@@ -26,14 +55,14 @@ def main():
     else:
         raise SystemExit("verification imported the source checkout, not the artifact")
 
-    if module.__version__ != "2.1.1":
-        raise SystemExit("installed module version changed")
+    if module.__version__ != expected_version:
+        raise SystemExit("installed module version does not match the candidate")
     if SplunkHecAio.__module__ != "splunk_hec_aio.splunk_hec_aio":
         raise SystemExit("documented nested import identity changed")
     if distribution.metadata["Name"] != "Splunk-HEC-AIO":
         raise SystemExit("installed distribution name changed")
-    if distribution.version != "2.1.1":
-        raise SystemExit("installed distribution version changed")
+    if distribution.version != expected_version:
+        raise SystemExit("installed distribution version does not match the candidate")
     expected_summary = (
         "This is a python class file for use with other python scripts to send "
         "events to a Splunk http event collector."
