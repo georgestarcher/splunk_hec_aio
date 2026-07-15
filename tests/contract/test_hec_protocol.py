@@ -4,7 +4,7 @@ import json
 import logging
 import unittest
 import uuid
-from unittest.mock import AsyncMock, patch, sentinel
+from unittest.mock import patch, sentinel
 
 from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
@@ -53,6 +53,26 @@ class _RecordingRetryClient:
 
     async def close(self):
         self.closed = True
+
+
+class _AsyncCallRecorder:
+    def __init__(self, return_value=None, side_effect=None):
+        self.return_value = return_value
+        self.side_effect = side_effect
+        self.await_count = 0
+
+    async def __call__(self, *args, **kwargs):
+        self.await_count += 1
+        if self.side_effect is None:
+            return self.return_value
+        if isinstance(self.side_effect, type) and issubclass(
+            self.side_effect, BaseException
+        ):
+            raise self.side_effect()
+        result = self.side_effect(*args, **kwargs)
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
 
 
 class TestHecProtocol(unittest.TestCase):
@@ -307,7 +327,7 @@ class TestHecProtocol(unittest.TestCase):
         with patch.object(
             self.sender,
             "_post_batch",
-            new=AsyncMock(return_value=None),
+            new=_AsyncCallRecorder(return_value=None),
         ) as post_batch:
             for event in events:
                 self.sender.post_data(event)
@@ -350,7 +370,7 @@ class TestHecProtocol(unittest.TestCase):
         with patch.object(
             self.sender,
             "_http_post_task",
-            new=AsyncMock(side_effect=capture_one_batch),
+            new=_AsyncCallRecorder(side_effect=capture_one_batch),
         ) as post_task:
             asyncio.run(self.sender._post_batch())
 
@@ -364,7 +384,7 @@ class TestHecProtocol(unittest.TestCase):
         with patch.object(
             self.sender,
             "_http_post_task",
-            new=AsyncMock(side_effect=asyncio.CancelledError),
+            new=_AsyncCallRecorder(side_effect=asyncio.CancelledError),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 asyncio.run(self.sender._post_batch())
