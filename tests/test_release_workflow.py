@@ -147,6 +147,10 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
         self.assertNotIn("environment:", workflow)
         self.assertNotIn('--version "${{ inputs.version }}"', workflow)
         self.assertIn("CANDIDATE_VERSION: ${{ inputs.version }}", workflow)
+        guard = workflow.index("Require the main branch before checkout")
+        first_checkout = workflow.index("Check out repository")
+        self.assertLess(guard, first_checkout)
+        self.assertIn('[[ "$GITHUB_REF" != "refs/heads/main" ]]', workflow)
 
     def test_release_workflow_reuses_every_protected_secret_free_gate(self):
         workflow = RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
