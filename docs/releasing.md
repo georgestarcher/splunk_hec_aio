@@ -8,6 +8,14 @@ GitHub release** workflow can consume that exact evidence only after a verified
 signed tag and explicit approval through the protected `GITHUB_RELEASE`
 environment.
 
+The current `main` branch reports `3.0.0.dev0`. Both release workflows require
+a stable `X.Y.Z` version, so this development build is intentionally
+ineligible for verification or publication. The v2.1.2 instructions below are
+the retained record of the final legacy release and must not be rerun against
+its immutable tag. Issue
+[#44](https://github.com/georgestarcher/splunk_hec_aio/issues/44) owns the v3
+migration and release gates before a stable v3 candidate is prepared.
+
 ## Distribution policy
 
 The final planned v2 release, v2.1.2, uses GitHub Releases only. Existing
@@ -22,7 +30,7 @@ Publication remains a separate, approval-gated step tracked by issues
 dry run is evidence for that decision; it is not itself a release and cannot
 publish without a maintainer-created signed tag.
 
-## Run the protected dry run
+## Run the protected dry run for a stable candidate
 
 1. Merge the intended candidate commit to `main`. The workflow rejects any
    other ref.
@@ -54,7 +62,7 @@ The workflow has read-only repository permission, uses no environment or
 secret, and has no tag or publication trigger. Its candidate artifact expires
 after seven days and must not be presented as an official release asset.
 
-## Reproduce artifact checks locally
+## Reproduce the historical v2.1.2 artifact checks locally
 
 From a clean checkout with the development extra installed:
 
@@ -81,14 +89,15 @@ python .github/scripts/verify_release_candidate.py manifest \
 These commands target the v2.1.2 candidate. Local output is only diagnostic
 evidence; the GitHub-hosted dry run remains the release gate.
 
-## Publish an approved v2.1.2 candidate
+## Historical v2.1.2 publication procedure
 
-Before creating the tag, confirm that the candidate commit is still the tip of
-`main`, record the successful Release verification and protected Live Splunk
-integration run URLs, and review the complete diff from v2.1.1. The final
-release commit must contain version `2.1.2`, the dated changelog section, and
-the approved compatibility classification without an unapproved runtime or
-wire-visible behavior change.
+Do not repeat this procedure for the existing immutable v2.1.2 release. For
+the historical record, maintainers confirmed that the candidate commit was the
+tip of `main`, recorded the successful Release verification and protected Live
+Splunk integration run URLs, and reviewed the complete diff from v2.1.1. The
+final release commit must contain version `2.1.2`, the dated changelog section,
+and the approved compatibility classification without an unapproved runtime
+or wire-visible behavior change.
 
 Create and locally verify an annotated signed tag at the exact candidate
 commit, then push only that new tag:

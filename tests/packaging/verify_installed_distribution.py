@@ -71,8 +71,22 @@ def main(arguments=None):
         raise SystemExit("installed distribution summary changed")
     if distribution.metadata["Keywords"] != "splunk hec aio":
         raise SystemExit("installed distribution keywords changed")
-    if distribution.metadata["Requires-Python"] != ">3.5":
+    if distribution.metadata["Requires-Python"] != ">=3.9":
         raise SystemExit("installed Requires-Python changed")
+    expected_classifiers = {
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Topic :: System :: Logging",
+    }
+    if set(distribution.metadata.get_all("Classifier", [])) != expected_classifiers:
+        raise SystemExit("installed classifiers changed")
 
     runtime_requirements = {
         normalized_requirement(value)

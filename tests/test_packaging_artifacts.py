@@ -15,7 +15,7 @@ SPEC.loader.exec_module(verify_artifacts)
 
 class TestPackagingArtifactPolicy(unittest.TestCase):
     def test_artifact_version_defaults_to_the_authoritative_runtime_source(self):
-        self.assertEqual(verify_artifacts.read_source_version(ROOT), "2.1.2")
+        self.assertEqual(verify_artifacts.read_source_version(ROOT), "3.0.0.dev0")
 
     def test_metadata_verification_honors_a_supplied_candidate_version(self):
         metadata = MagicMock()
@@ -27,11 +27,12 @@ class TestPackagingArtifactPolicy(unittest.TestCase):
                 "send events to a Splunk http event collector."
             ),
             "Keywords": "splunk hec aio",
-            "Requires-Python": ">3.5",
+            "Requires-Python": ">=3.9",
             "License": "MIT",
         }
         metadata.get.side_effect = values.get
         metadata.get_all.side_effect = lambda key, default=None: {
+            "Classifier": sorted(verify_artifacts.EXPECTED_CLASSIFIERS),
             "Requires-Dist": [
                 "aiohttp",
                 "aiohttp-retry",

@@ -54,6 +54,8 @@ class TestReadmeQuickStart(unittest.TestCase):
         self.assertIn("latest published release", readme)
         self.assertIn("splunk_hec_aio.git@v2.1.2", readme)
         self.assertIn("final planned legacy-compatible v2", readme)
+        self.assertIn("3.0.0.dev0", readme)
+        self.assertIn("Python 3.9 or later", readme)
 
 
 @unittest.skipUnless(

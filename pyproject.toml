@@ -5,9 +5,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
-# Metadata values remain in setup.cfg so Python 3.6-era setuptools can build
-# the project. Modern setuptools reads the same values through this PEP 621
-# declaration; the distribution name is repeated because PEP 621 requires it.
+# Metadata values remain authoritative in setup.cfg. Modern setuptools reads
+# the same values through this PEP 621 declaration; the distribution name is
+# repeated because PEP 621 requires it.
 [project]
 name = "Splunk-HEC-AIO"
 dynamic = [

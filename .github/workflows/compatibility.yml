@@ -53,6 +53,15 @@ jobs:
         include:
           - platform: Linux
             os: ubuntu-latest
+            python-version: "3.10"
+          - platform: Linux
+            os: ubuntu-latest
+            python-version: "3.11"
+          - platform: Linux
+            os: ubuntu-latest
+            python-version: "3.12"
+          - platform: Linux
+            os: ubuntu-latest
             python-version: "3.13"
           - platform: macOS
             os: macos-latest
@@ -86,7 +95,7 @@ jobs:
       - name: Install runtime requirements
         run: python -m pip install --disable-pip-version-check -r requirements.txt
 
-      - name: Run v2 runtime compatibility suite
+      - name: Run supported runtime suite and v2 API snapshot
         env:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONWARNINGS: error

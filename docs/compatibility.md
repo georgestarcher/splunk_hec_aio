@@ -1,8 +1,9 @@
 # v2 compatibility contract
 
-`splunk_hec_aio` has active users. The v2 release line therefore treats the
-released v2.1.1 behavior as its compatibility baseline while the repository is
-modernized.
+`splunk_hec_aio` has active users. The immutable v2.1.2 release preserves the
+v2.1.1 behavior captured by the repository's compatibility baseline. The v3
+development line keeps that evidence intact while each approved behavior
+change is reviewed separately.
 
 The characterization tests under `tests/` describe that baseline. They are
 deliberately separate from tests that specify corrected or new behavior. A
@@ -25,12 +26,11 @@ Within the v2 release line, maintainers should preserve:
   except for an explicitly approved protocol bug fix;
 - Python versions that are established as supported by compatibility evidence.
 
-The `python_requires` value currently declares Python versions greater than
-3.5. That declaration is not proof that every such version works with current
-dependencies. The minimum supported version must be established separately and
-must not be raised merely because development tools require a newer Python.
-Modern lint, type, audit, and build tools can run in a separate tooling
-environment.
+V2.1.2 retains its historical `python_requires >3.5` metadata. V3 declares
+`python_requires >=3.9`: Python 3.9 is the supported compatibility floor and
+Python 3.13 is the primary modern Splunk-aligned target. Current-Python lint,
+type, audit, and build tools remain separate from the runtime compatibility
+suite.
 
 ## Change classifications
 
@@ -78,13 +78,12 @@ The suite performs no network requests and needs no Splunk host or token.
 
 The packaging workflow separately builds the wheel and source distribution,
 checks their metadata and file allowlists, installs each artifact into a clean
-environment, and runs the nested-import and public-API checks from outside the
-checkout. Python 3.9 is the established bootstrap target and Python 3.13 is an
-additional evidenced packaging target. These checks do not infer that versions
-between the declared `python_requires` bound and the tested targets are fully
-supported; the complete supported range remains tracked separately.
+environment, and runs the nested-import and v2 public-API snapshot from outside
+the checkout on Python 3.9 and 3.13. Runtime CI also exercises Python 3.10,
+3.11, and 3.12 on Linux, plus Python 3.9 and 3.13 on macOS and Windows.
 
-Version 2.1.2 is the final planned legacy-compatible v2 release. Future
-development moves to v3, where Python 3.9 remains the legacy compatibility
-anchor and Python 3.13 the modern Splunk-aligned anchor. The exact v3 minimum
-must be declared before v3 is released.
+Version 2.1.2 remains the final planned legacy-compatible v2 release. V3 begins
+at `3.0.0.dev0` with a minimum of Python 3.9. Raising that floor is the only
+intentional compatibility break in the foundation change; constructor,
+string, async, transport, endpoint, batching, retry, logging, and failure
+behavior remain unchanged until their focused v3 issues are approved.

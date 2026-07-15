@@ -88,15 +88,14 @@ def write_fake_artifacts(directory: Path, version: str):
     HELPER_PATH.is_file(), "repository-only release helper is unavailable"
 )
 class TestReleaseCandidateHelper(unittest.TestCase):
-    def test_current_source_is_valid_for_a_nonbreaking_main_candidate(self):
-        result = verify_release_candidate.validate_source(
-            ROOT,
-            "2.1.2",
-            "no-observable-behavior-change",
-            "refs/heads/main",
-        )
-
-        self.assertEqual(result["version"], "2.1.2")
+    def test_current_development_source_is_not_a_stable_release_candidate(self):
+        with self.assertRaisesRegex(SystemExit, "stable semantic version"):
+            verify_release_candidate.validate_source(
+                ROOT,
+                "3.0.0.dev0",
+                "no-observable-behavior-change",
+                "refs/heads/main",
+            )
 
     def test_source_validation_rejects_wrong_ref_version_and_classification(self):
         cases = (
