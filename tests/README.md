@@ -52,6 +52,16 @@ suite remains free of modern tooling dependencies.
 `test_live_integration_support.py` tests the live-workflow helper, query
 template, and security boundaries entirely offline. The real HEC send and
 querysplunk search run only from the manually approved GitHub Actions workflow.
+Those repository-policy checks skip when their `.github` assets are absent
+from an extracted source distribution. A Git checkout is detected by its
+`.git` entry and fails test discovery if any required live-integration asset is
+missing, so the distribution-aware skips cannot hide an incomplete workflow.
+
+`test_example.py` executes the maintained root `example.py` against a mocked
+`SplunkHecAio` sender. It limits the high-volume example to three events and
+proves its configuration, post, and flush path without opening a socket. The
+test skips when the repository-only example is absent from a source
+distribution.
 
 ## Packaging verification
 
@@ -64,3 +74,7 @@ prevents an in-tree import from hiding a broken installation.
 The legacy test module was moved to `legacy/` so it is not installed as part of
 the runtime package. It remains excluded from default test discovery because it
 contains historical network-dependent cases.
+
+The Packaging workflow also extracts the built source distribution and runs
+the complete deterministic test suite that it ships. Repository-only policy
+and example checks must skip cleanly there instead of failing during import.

@@ -10,10 +10,30 @@ from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / ".github" / "scripts" / "live_hec_smoke.py"
-SPEC = importlib.util.spec_from_file_location("live_hec_smoke", HELPER_PATH)
-live_hec_smoke = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = live_hec_smoke
-SPEC.loader.exec_module(live_hec_smoke)
+QUERY_PATH = ROOT / ".github" / "querysplunk" / "hec-smoke.yml"
+WORKFLOW_PATH = ROOT / ".github" / "workflows" / "live-integration.yml"
+IS_REPOSITORY_CHECKOUT = (ROOT / ".git").exists()
+REPOSITORY_ASSETS = (HELPER_PATH, QUERY_PATH, WORKFLOW_PATH)
+MISSING_REPOSITORY_ASSETS = [path for path in REPOSITORY_ASSETS if not path.is_file()]
+
+if IS_REPOSITORY_CHECKOUT and MISSING_REPOSITORY_ASSETS:
+    missing = ", ".join(
+        str(path.relative_to(ROOT)) for path in MISSING_REPOSITORY_ASSETS
+    )
+    raise RuntimeError("repository live integration assets are missing: " + missing)
+
+HELPER_ASSETS_AVAILABLE = HELPER_PATH.is_file() and QUERY_PATH.is_file()
+POLICY_ASSETS_AVAILABLE = WORKFLOW_PATH.is_file() and QUERY_PATH.is_file()
+
+if HELPER_ASSETS_AVAILABLE:
+    SPEC = importlib.util.spec_from_file_location("live_hec_smoke", HELPER_PATH)
+    if SPEC is None or SPEC.loader is None:
+        raise RuntimeError("could not load the live integration helper")
+    live_hec_smoke = importlib.util.module_from_spec(SPEC)
+    sys.modules[SPEC.name] = live_hec_smoke
+    SPEC.loader.exec_module(live_hec_smoke)
+else:
+    live_hec_smoke = None
 
 
 def valid_environment():
@@ -37,6 +57,10 @@ def valid_environment():
     }
 
 
+@unittest.skipUnless(
+    HELPER_ASSETS_AVAILABLE,
+    "repository-only live integration helper assets are unavailable",
+)
 class TestLiveHecSmokeHelper(unittest.TestCase):
     def test_helper_is_executable_from_the_repository_root(self):
         completed = subprocess.run(
@@ -80,10 +104,9 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
 
     def test_render_query_replaces_only_validated_placeholders(self):
         environment = valid_environment()
-        template = ROOT / ".github" / "querysplunk" / "hec-smoke.yml"
         with tempfile.TemporaryDirectory() as temporary_directory:
             output = Path(temporary_directory) / "rendered.yml"
-            live_hec_smoke.render_query(template, output, environment)
+            live_hec_smoke.render_query(QUERY_PATH, output, environment)
             rendered = output.read_text(encoding="utf-8")
 
             self.assertIn("index=ci_index", rendered)
@@ -96,13 +119,12 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
     def test_render_query_rejects_search_injection_characters(self):
         environment = valid_environment()
         environment["SPLUNK_HEC_INDEX"] = "ci_index | delete"
-        template = ROOT / ".github" / "querysplunk" / "hec-smoke.yml"
         with tempfile.TemporaryDirectory() as temporary_directory:
             output = Path(temporary_directory) / "rendered.yml"
             with self.assertRaisesRegex(
                 live_hec_smoke.SmokeTestError, "unsupported characters"
             ):
-                live_hec_smoke.render_query(template, output, environment)
+                live_hec_smoke.render_query(QUERY_PATH, output, environment)
 
     def test_match_count_accepts_zero_and_positive_aggregate_results(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -150,11 +172,13 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
         sender.flush.assert_called_once_with()
 
 
+@unittest.skipUnless(
+    POLICY_ASSETS_AVAILABLE,
+    "repository-only live integration policy assets are unavailable",
+)
 class TestLiveIntegrationPolicy(unittest.TestCase):
     def test_workflow_is_manual_protected_and_action_references_are_pinned(self):
-        workflow = (ROOT / ".github" / "workflows" / "live-integration.yml").read_text(
-            encoding="utf-8"
-        )
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
         self.assertIn("  workflow_dispatch:", workflow)
         self.assertNotIn("pull_request_target", workflow)
@@ -171,9 +195,7 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
                 self.assertRegex(reference, r"^[0-9a-f]{40}$")
 
     def test_query_template_has_explicit_bounds_and_zero_match_aggregate(self):
-        query = (ROOT / ".github" / "querysplunk" / "hec-smoke.yml").read_text(
-            encoding="utf-8"
-        )
+        query = QUERY_PATH.read_text(encoding="utf-8")
 
         self.assertIn('earliest_time: "-10m"', query)
         self.assertIn('latest_time: "now"', query)
