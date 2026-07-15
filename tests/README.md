@@ -29,9 +29,10 @@ Run the suite from the repository root:
 PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s tests -v
 ```
 
-The initial compatibility CI job runs this command on Python 3.9 because the
-baseline is locally verified on Python 3.9.6. That bootstrap target is not a
-declaration of the minimum or complete supported Python range.
+The required compatibility job runs this command on Linux with Python 3.9.
+Additional runtime jobs cover Linux on Python 3.13 and macOS and Windows on
+both Python 3.9 and 3.13. These evidence-backed targets are not a declaration
+of the minimum or complete supported Python range.
 
 The **Quality** workflow runs the same deterministic tests under pytest on
 Python 3.13 and enforces at least 70% branch coverage. Pytest is configured to
