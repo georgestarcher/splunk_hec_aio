@@ -9,6 +9,9 @@ body:
       value: |
         Thanks for reporting a problem. Please remove HEC tokens, authorization
         headers, private hostnames, and sensitive event data before submitting.
+        If this may be a security vulnerability, stop and use the
+        [private vulnerability-reporting form](https://github.com/georgestarcher/splunk_hec_aio/security/advisories/new)
+        instead of opening a public issue.
 
   - type: input
     id: module-version

@@ -10,6 +10,9 @@ body:
         The module has active users. New capabilities should preserve existing
         v2 imports, defaults, return values, exceptions, and synchronous usage.
         Prefer additive, opt-in designs when behavior could change.
+        If this request would disclose a suspected security vulnerability, use
+        the [private vulnerability-reporting form](https://github.com/georgestarcher/splunk_hec_aio/security/advisories/new)
+        instead of opening a public issue.
 
   - type: textarea
     id: problem

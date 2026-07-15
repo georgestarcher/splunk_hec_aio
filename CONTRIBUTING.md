@@ -3,6 +3,13 @@
 Thank you for helping improve `splunk_hec_aio`. The module has active users, so
 changes should be small, testable, and deliberate about backward compatibility.
 
+## Report a security vulnerability
+
+Do not open a public issue, pull request, or discussion for a suspected
+vulnerability. Follow the [security policy](SECURITY.md) and use the
+[private vulnerability-reporting form](https://github.com/georgestarcher/splunk_hec_aio/security/advisories/new).
+Never include real credentials, private endpoints, or sensitive event data.
+
 ## Report a bug or request a feature
 
 Use the repository's bug-report or feature-request form. Search open and closed
