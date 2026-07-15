@@ -18,6 +18,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   source-distribution verification.
 - Installed-artifact checks for the documented nested import and v2.1.1 public
   API on Python 3.9 and 3.13.
+- Current-Python quality gates for formatting, linting, scoped static typing,
+  branch coverage, and dependency vulnerability auditing.
 
 ### Changed
 

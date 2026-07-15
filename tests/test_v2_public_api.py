@@ -6,7 +6,6 @@ from pathlib import Path
 import splunk_hec_aio.splunk_hec_aio as module
 from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
-
 FIXTURE = Path(__file__).parent / "fixtures" / "v2_1_1_public_api.json"
 
 

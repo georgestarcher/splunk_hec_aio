@@ -6,7 +6,7 @@ import tarfile
 import zipfile
 from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
-
+from typing import NoReturn
 
 EXPECTED_RUNTIME_MODULES = {
     "splunk_hec_aio/__init__.py",
@@ -21,7 +21,7 @@ EXPECTED_PROJECT_URLS = {
 FORBIDDEN_PARTS = {".DS_Store", "__pycache__"}
 
 
-def fail(message):
+def fail(message: str) -> NoReturn:
     raise SystemExit(message)
 
 

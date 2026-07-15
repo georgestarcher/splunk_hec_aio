@@ -53,6 +53,37 @@ standard contributor test command. CI initially runs this suite on Python 3.9,
 which is an observed bootstrap target and does not establish the project's
 minimum or complete supported Python range.
 
+## Run the quality suite
+
+The quality tools run on Python 3.13 while checking code against a Python 3.9
+syntax target. This keeps current development tooling separate from the v2
+runtime floor. Install the pinned quality tools and runtime dependencies in a
+dedicated environment:
+
+```shell
+python3.13 -m venv .venv-quality
+source .venv-quality/bin/activate
+python -m pip install -r requirements.txt -r .github/requirements/quality.txt
+```
+
+Then run the same secret-free checks used by the **Quality** GitHub Actions
+workflow:
+
+```shell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy
+python -m pytest --cov=splunk_hec_aio --cov-branch --cov-report=term-missing --cov-fail-under=70
+python -m pip_audit --requirement requirements.txt
+git diff --exit-code
+```
+
+Static type checking initially covers the live-integration helper and packaging
+verification code. Expanding it into the released runtime module needs a
+versioned compatibility review; type-only refactoring must not silently change
+v2 behavior. The branch-coverage floor is a ratchet, not a substitute for
+focused behavior assertions.
+
 ## Build and verify distributions
 
 Packaging metadata keeps the runtime requirements separate from the `dev`

@@ -5,6 +5,7 @@ __pycache__/
 
 # Virtual environments and local configuration
 .venv/
+.venv-quality/
 venv/
 env/
 .env
