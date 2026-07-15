@@ -1,0 +1,40 @@
+name: Compatibility
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  v2-baseline:
+    name: Compatibility / v2 baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.9 bootstrap target
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.9"
+
+      - name: Install runtime requirements
+        run: python -m pip install -r requirements.txt
+
+      - name: Run v2 compatibility baseline
+        run: PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s tests -v

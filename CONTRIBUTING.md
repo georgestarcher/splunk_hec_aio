@@ -20,24 +20,38 @@ testing; do not infer a new minimum version from development-tool requirements.
 
 ```shell
 python -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-On Windows, use `.venv\\Scripts\\python` in place of `.venv/bin/python`.
+On Windows PowerShell, activate the environment with
+`.venv\\Scripts\\Activate.ps1` before running the `python` commands.
 
 ## Run the compatibility suite
 
-From the repository root, run:
+From the repository root with the virtual environment active, run the same
+command used by the compatibility CI job:
 
 ```shell
-.venv/bin/python -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s tests -v
+```
+
+In Windows PowerShell, set the two environment variables before running the
+same Python command:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONWARNINGS = "error"
+python -m unittest discover -s tests -v
 ```
 
 The compatibility suite must remain deterministic, secret-free, and isolated
 from public networks. It must not require a Splunk host or token. The legacy
 test module inside the package contains live-network tests and is not the
-standard contributor test command.
+standard contributor test command. CI initially runs this suite on Python 3.9,
+which is an observed bootstrap target and does not establish the project's
+minimum or complete supported Python range.
 
 ## Preserve the v2 contract
 
