@@ -12,6 +12,16 @@ ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / ".github" / "scripts" / "live_hec_smoke.py"
 QUERY_PATH = ROOT / ".github" / "querysplunk" / "hec-smoke.yml"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "live-integration.yml"
+IS_REPOSITORY_CHECKOUT = (ROOT / ".git").exists()
+REPOSITORY_ASSETS = (HELPER_PATH, QUERY_PATH, WORKFLOW_PATH)
+MISSING_REPOSITORY_ASSETS = [path for path in REPOSITORY_ASSETS if not path.is_file()]
+
+if IS_REPOSITORY_CHECKOUT and MISSING_REPOSITORY_ASSETS:
+    missing = ", ".join(
+        str(path.relative_to(ROOT)) for path in MISSING_REPOSITORY_ASSETS
+    )
+    raise RuntimeError("repository live integration assets are missing: " + missing)
+
 HELPER_ASSETS_AVAILABLE = HELPER_PATH.is_file() and QUERY_PATH.is_file()
 POLICY_ASSETS_AVAILABLE = WORKFLOW_PATH.is_file() and QUERY_PATH.is_file()
 

@@ -53,7 +53,9 @@ suite remains free of modern tooling dependencies.
 template, and security boundaries entirely offline. The real HEC send and
 querysplunk search run only from the manually approved GitHub Actions workflow.
 Those repository-policy checks skip when their `.github` assets are absent
-from an extracted source distribution.
+from an extracted source distribution. A Git checkout is detected by its
+`.git` entry and fails test discovery if any required live-integration asset is
+missing, so the distribution-aware skips cannot hide an incomplete workflow.
 
 `test_example.py` executes the maintained root `example.py` against a mocked
 `SplunkHecAio` sender. It limits the high-volume example to three events and
