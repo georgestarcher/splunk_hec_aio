@@ -31,6 +31,10 @@ Explain any unchecked item:
 ## Verification
 
 - [ ] `python -m unittest discover -s tests -v` passes.
+- [ ] `python -m build` and `python -m twine check dist/*` pass when packaging
+      metadata or contents change.
+- [ ] Wheel and source-distribution installation tests run outside the checkout
+      when packaging metadata or contents change.
 - [ ] Tests use mocks or local transports and make no public network requests.
 - [ ] No HEC token, authorization header, private hostname, or sensitive event
       data appears in code, fixtures, logs, or artifacts.

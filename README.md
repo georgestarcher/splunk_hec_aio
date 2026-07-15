@@ -42,6 +42,13 @@ Instantiate a copy of the SplunkHecAio object and use to generate and submit pay
 
     pip3 install git+https://github.com/georgestarcher/splunk_hec_aio.git
 
+The installed distribution preserves the existing nested import used by the
+v2 release line:
+
+```python
+from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
+```
+
 ### Example:
 
         import logging

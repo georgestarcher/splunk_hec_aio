@@ -22,7 +22,7 @@ testing; do not infer a new minimum version from development-tool requirements.
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -e ".[dev]"
 ```
 
 On Windows PowerShell, activate the environment with
@@ -48,10 +48,31 @@ python -m unittest discover -s tests -v
 
 The compatibility suite must remain deterministic, secret-free, and isolated
 from public networks. It must not require a Splunk host or token. The legacy
-test module inside the package contains live-network tests and is not the
+test module under `tests/legacy/` contains live-network tests and is not the
 standard contributor test command. CI initially runs this suite on Python 3.9,
 which is an observed bootstrap target and does not establish the project's
 minimum or complete supported Python range.
+
+## Build and verify distributions
+
+Packaging metadata keeps the runtime requirements separate from the `dev`
+extra installed above. Values are declared in `setup.cfg` so older installers
+can keep using the compatibility shim; `pyproject.toml` exposes the same values
+to modern PEP 517/621 build frontends. Build both supported artifact formats
+and validate their metadata from the repository root:
+
+```shell
+rm -rf build dist *.egg-info
+python -m build
+python -m twine check dist/*
+python tests/packaging/verify_artifacts.py dist/*
+```
+
+The **Packaging** GitHub Actions workflow additionally installs the wheel and
+source distribution into separate clean environments, changes to a directory
+outside the checkout, and checks the documented nested import and v2.1.1 API
+snapshot. Python 3.9 and 3.13 are evidence-backed CI targets; they do not yet
+establish the project's minimum or complete supported range.
 
 ## Run the protected live integration test
 
