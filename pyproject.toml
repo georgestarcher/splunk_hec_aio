@@ -53,7 +53,7 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-norecursedirs = ["legacy"]
+norecursedirs = [".*", "build", "dist", "legacy", "node_modules", "venv"]
 addopts = ["--strict-config", "--strict-markers"]
 filterwarnings = ["error"]
 

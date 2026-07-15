@@ -82,7 +82,10 @@ Static type checking initially covers the live-integration helper and packaging
 verification code. Expanding it into the released runtime module needs a
 versioned compatibility review; type-only refactoring must not silently change
 v2 behavior. The branch-coverage floor is a ratchet, not a substitute for
-focused behavior assertions.
+focused behavior assertions. The quality suite also runs bounded,
+deterministic Hypothesis properties from `tests/property/`. That directory is
+intentionally not a Python package, so the Python 3.9 unittest compatibility
+baseline does not import the modern-only Hypothesis dependency.
 
 ## Build and verify distributions
 

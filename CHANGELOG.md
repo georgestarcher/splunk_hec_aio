@@ -20,6 +20,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   API on Python 3.9 and 3.13.
 - Current-Python quality gates for formatting, linting, scoped static typing,
   branch coverage, and dependency vulnerability auditing.
+- Bounded property tests for queue ordering, transport round trips, and batch
+  preservation in the modern quality environment.
 
 ### Changed
 
