@@ -5,7 +5,23 @@ Version/Date: 2.1.1 2024-01-18
 Author: George Starcher (starcher)
 Email: george@georgestarcher.com
 
-This code is presented **AS IS** under MIT license.
+This code is presented **AS IS** under the [MIT License](LICENSE).
+
+## Compatibility
+
+The v2 release line preserves the released public API and existing user
+behavior while the repository is modernized. The compatibility policy and
+local baseline-test command are documented in
+[`docs/compatibility.md`](docs/compatibility.md).
+Contributor setup and review requirements are documented in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Additional project documentation:
+
+- [Changelog](CHANGELOG.md)
+- [Examples](examples/README.md)
+- [License](LICENSE)
+- [Modernization roadmap](https://github.com/users/georgestarcher/projects/2)
 
 ## Description:
 

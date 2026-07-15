@@ -1,0 +1,121 @@
+name: Bug report
+description: Report a reproducible problem with splunk_hec_aio
+title: "[Bug]: "
+labels:
+  - bug
+projects:
+  - georgestarcher/2
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please remove HEC tokens, authorization
+        headers, private hostnames, and sensitive event data before submitting.
+
+  - type: input
+    id: module-version
+    attributes:
+      label: splunk_hec_aio version
+      description: Provide the release, tag, or commit you are using.
+      placeholder: "2.1.1"
+    validations:
+      required: true
+
+  - type: input
+    id: installation
+    attributes:
+      label: Installation method
+      description: Tell us how the module was installed.
+      placeholder: "pip install git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.1"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "Python 3.11.9"
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 24.04, macOS 15, or Windows 11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: payload-mode
+    attributes:
+      label: Payload mode
+      options:
+        - JSON event mode
+        - Raw text mode
+        - Both modes
+        - Not applicable or unknown
+    validations:
+      required: true
+
+  - type: input
+    id: splunk-environment
+    attributes:
+      label: Splunk environment
+      description: Include Splunk Enterprise or Splunk Cloud and the version when known. Do not include a private hostname.
+      placeholder: "Splunk Enterprise 9.2"
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest secret-free example that demonstrates the problem.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect the module to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: Include the exception, return value, or observable result. Redact credentials and sensitive data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or response details
+      description: Optional. Remove tokens, authorization headers, private URLs, and event contents.
+      render: shell
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did this work in an earlier version?
+      options:
+        - Unknown
+        - No, this has never worked for me
+        - Yes, this is a regression
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched the open and closed issues for an existing report.
+          required: true
+        - label: I removed tokens, credentials, private hostnames, and sensitive event data.
+          required: true
+        - label: I understand that released v2 behavior is preserved unless a change is explicitly classified and approved.
+          required: true

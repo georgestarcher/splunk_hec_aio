@@ -1,19 +1,39 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-dist/
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Secrets
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
 .env
+.env.*
+!.env.example
 
-# Developement
-.venv
+# Builds and package artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Test binary
-*.test
+# Test, coverage, and analysis output
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+junit.xml
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Generated Splunk integration results
+splunkresults.json
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,95 @@
+name: Feature request
+description: Propose a backward-compatible improvement to splunk_hec_aio
+title: "[Feature]: "
+labels:
+  - enhancement
+projects:
+  - georgestarcher/2
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The module has active users. New capabilities should preserve existing
+        v2 imports, defaults, return values, exceptions, and synchronous usage.
+        Prefer additive, opt-in designs when behavior could change.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe the user problem rather than only the proposed implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the desired API or behavior and include a short usage example when helpful.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compatibility-class
+    attributes:
+      label: Expected compatibility classification
+      description: Select the closest classification. Maintainers will confirm it during review.
+      options:
+        - No observable behavior change
+        - Backward-compatible bug fix
+        - Opt-in addition
+        - Breaking change
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: existing-api-impact
+    attributes:
+      label: Existing API impact
+      options:
+        - No existing API changes
+        - Adds new optional parameters or methods
+        - Changes request bytes or endpoint behavior
+        - Changes defaults, return values, or exceptions
+        - Removes or renames existing behavior
+        - Unsure
+    validations:
+      required: true
+
+  - type: input
+    id: affected-api
+    attributes:
+      label: Affected methods or settings
+      description: List any public methods, defaults, imports, endpoints, or Python versions involved.
+      placeholder: "post_data, flush, JSON event mode"
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or opt-in designs that could preserve existing callers.
+
+  - type: textarea
+    id: splunk-reference
+    attributes:
+      label: Splunk documentation or protocol reference
+      description: Add authoritative links when the request involves HEC endpoints, payloads, or acknowledgment.
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Suggested validation
+      description: Explain the unit, contract, platform, or live Splunk tests that would prove the feature works safely.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched the open and closed issues for an existing request.
+          required: true
+        - label: I considered whether this can be additive and disabled by default.
+          required: true
+        - label: I did not include tokens, credentials, private hostnames, or sensitive event data.
+          required: true

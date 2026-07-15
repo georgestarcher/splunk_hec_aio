@@ -1,0 +1,123 @@
+{
+  "baseline_version": "2.1.1",
+  "class": "SplunkHecAio",
+  "constructor_signature": "(host: str, token: str)",
+  "members": {
+    "check_connectivity": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "flush": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_concurrent_post_limit": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_host": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_https": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_index": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_payload_json_format": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_pop_empty_fields": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_port": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_post_max_byte_size": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_source": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_sourcetype": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "get_verify_tls": {
+      "kind": "method",
+      "signature": "(self)"
+    },
+    "post_data": {
+      "kind": "method",
+      "signature": "(self, payload)"
+    },
+    "retry_http_status_codes": {
+      "kind": "property"
+    },
+    "set_concurrent_post_limit": {
+      "kind": "method",
+      "signature": "(self, value=10)"
+    },
+    "set_host": {
+      "kind": "method",
+      "signature": "(self, value=None)"
+    },
+    "set_https": {
+      "kind": "method",
+      "signature": "(self, value=True)"
+    },
+    "set_index": {
+      "kind": "method",
+      "signature": "(self, value=None)"
+    },
+    "set_payload_json_format": {
+      "kind": "method",
+      "signature": "(self, value=True)"
+    },
+    "set_pop_empty_fields": {
+      "kind": "method",
+      "signature": "(self, value=True)"
+    },
+    "set_port": {
+      "kind": "method",
+      "signature": "(self, value=8088)"
+    },
+    "set_post_max_byte_size": {
+      "kind": "method",
+      "signature": "(self, value=512000)"
+    },
+    "set_source": {
+      "kind": "method",
+      "signature": "(self, value=None)"
+    },
+    "set_sourcetype": {
+      "kind": "method",
+      "signature": "(self, value=None)"
+    },
+    "set_verify_tls": {
+      "kind": "method",
+      "signature": "(self, value=True)"
+    },
+    "splunk_headers": {
+      "kind": "property"
+    },
+    "splunk_health_url": {
+      "kind": "property"
+    },
+    "splunk_params": {
+      "kind": "property"
+    },
+    "splunk_post_url": {
+      "kind": "property"
+    }
+  },
+  "module": "splunk_hec_aio.splunk_hec_aio"
+}
