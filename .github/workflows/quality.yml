@@ -1,0 +1,66 @@
+name: Quality
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-tests:
+    name: Quality / static and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13 quality environment
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            .github/requirements/quality.txt
+
+      - name: Install runtime and quality requirements
+        run: >-
+          python -m pip install --disable-pip-version-check
+          -r requirements.txt -r .github/requirements/quality.txt
+
+      - name: Check formatting
+        run: python -m ruff format --check .
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Check scoped static typing
+        run: python -m mypy
+
+      - name: Run tests with branch coverage
+        run: >-
+          python -m pytest
+          --cov=splunk_hec_aio
+          --cov-branch
+          --cov-report=term-missing
+          --cov-fail-under=70
+
+      - name: Audit runtime dependencies
+        run: python -m pip_audit --requirement requirements.txt
+
+      - name: Confirm checks did not modify tracked files
+        run: git diff --exit-code

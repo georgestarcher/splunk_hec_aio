@@ -1,13 +1,12 @@
 import importlib.util
 import json
-from pathlib import Path
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
-
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / ".github" / "scripts" / "live_hec_smoke.py"
@@ -66,23 +65,17 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
     def test_preflight_requires_verified_tls_and_https_search_origin(self):
         environment = valid_environment()
         environment["SPLUNKTLSVERIFY"] = "false"
-        with self.assertRaisesRegex(
-            live_hec_smoke.SmokeTestError, "must be true"
-        ):
+        with self.assertRaisesRegex(live_hec_smoke.SmokeTestError, "must be true"):
             live_hec_smoke.validate_preflight(environment)
 
         environment = valid_environment()
         environment["SPLUNKBASEURL"] = "http://splunk.example.com:8089/path"
-        with self.assertRaisesRegex(
-            live_hec_smoke.SmokeTestError, "HTTPS origin"
-        ):
+        with self.assertRaisesRegex(live_hec_smoke.SmokeTestError, "HTTPS origin"):
             live_hec_smoke.validate_preflight(environment)
 
         environment = valid_environment()
         environment["SPLUNKBASEURL"] = "https://splunk.example.com:invalid"
-        with self.assertRaisesRegex(
-            live_hec_smoke.SmokeTestError, "invalid port"
-        ):
+        with self.assertRaisesRegex(live_hec_smoke.SmokeTestError, "invalid port"):
             live_hec_smoke.validate_preflight(environment)
 
     def test_render_query_replaces_only_validated_placeholders(self):
@@ -135,9 +128,12 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
     def test_send_uses_public_class_without_real_network_access(self):
         environment = valid_environment()
         sender = MagicMock()
-        with patch.object(
-            live_hec_smoke, "SplunkHecAio", return_value=sender
-        ) as sender_class, patch.object(live_hec_smoke.time, "time", return_value=1.25):
+        with (
+            patch.object(
+                live_hec_smoke, "SplunkHecAio", return_value=sender
+            ) as sender_class,
+            patch.object(live_hec_smoke.time, "time", return_value=1.25),
+        ):
             live_hec_smoke.send_event(environment)
 
         sender_class.assert_called_once_with("splunk.example.com", "hec-token")

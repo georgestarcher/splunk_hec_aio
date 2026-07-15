@@ -91,9 +91,7 @@ class TestV2ReleasedBehavior(unittest.TestCase):
 
     def test_json_endpoint_headers_and_retry_defaults(self):
         channel = uuid.UUID("00000000-0000-0000-0000-000000000001")
-        with patch(
-            "splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel
-        ):
+        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel):
             headers = self.sender.splunk_headers
 
         self.assertEqual(
@@ -126,9 +124,7 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.sender.set_source("compatibility-test")
         self.sender.set_host("source-host")
 
-        with patch(
-            "splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel
-        ):
+        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel):
             params = self.sender.splunk_params
 
         self.assertEqual(

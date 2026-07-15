@@ -33,6 +33,15 @@ The initial compatibility CI job runs this command on Python 3.9 because the
 baseline is locally verified on Python 3.9.6. That bootstrap target is not a
 declaration of the minimum or complete supported Python range.
 
+The **Quality** workflow runs the same deterministic tests under pytest on
+Python 3.13 and enforces at least 70% branch coverage. Pytest is configured to
+collect only `test_*.py` beneath `tests/`; `tests/legacy/` remains excluded.
+Run that coverage gate from the repository root with:
+
+```shell
+python -m pytest --cov=splunk_hec_aio --cov-branch --cov-report=term-missing --cov-fail-under=70
+```
+
 `test_live_integration_support.py` tests the live-workflow helper, query
 template, and security boundaries entirely offline. The real HEC send and
 querysplunk search run only from the manually approved GitHub Actions workflow.

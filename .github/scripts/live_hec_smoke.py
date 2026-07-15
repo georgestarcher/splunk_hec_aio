@@ -2,25 +2,23 @@
 """Safe helpers for the protected live Splunk integration workflow."""
 
 import argparse
-from dataclasses import dataclass
 import json
 import logging
 import os
-from pathlib import Path
 import re
 import stat
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Optional, Sequence
 from urllib.parse import urlsplit
-
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from splunk_hec_aio.splunk_hec_aio import SplunkHecAio  # noqa: E402
-
 
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 SOURCE_PATTERN = re.compile(r"^[A-Za-z0-9_.:/-]+$")
@@ -70,7 +68,9 @@ def _safe_source(environ: Mapping[str, str]) -> str:
 def _hostname(environ: Mapping[str, str]) -> str:
     host = _required(environ, "SPLUNK_HEC_HOST")
     if "://" in host or "/" in host or ":" in host or len(host) > 253:
-        raise SmokeTestError("SPLUNK_HEC_HOST must be a hostname without a scheme or port")
+        raise SmokeTestError(
+            "SPLUNK_HEC_HOST must be a hostname without a scheme or port"
+        )
     labels = host.split(".")
     if any(
         not label
@@ -117,7 +117,9 @@ def _search_url(environ: Mapping[str, str]) -> str:
         or parsed.fragment
         or parsed.path not in ("", "/")
     ):
-        raise SmokeTestError("SPLUNKBASEURL must be an HTTPS origin without credentials")
+        raise SmokeTestError(
+            "SPLUNKBASEURL must be an HTTPS origin without credentials"
+        )
     return base_url
 
 
@@ -154,7 +156,9 @@ def validate_preflight(environ: Mapping[str, str]) -> None:
         raise SmokeTestError("HEC ingest and Splunk search tokens must be different")
 
 
-def render_query(template_path: Path, output_path: Path, environ: Mapping[str, str]) -> None:
+def render_query(
+    template_path: Path, output_path: Path, environ: Mapping[str, str]
+) -> None:
     """Render the committed search template using tightly validated identifiers."""
 
     replacements = {
@@ -187,10 +191,14 @@ def match_count(result_path: Path) -> int:
     value = results[0].get("matched") if isinstance(results[0], dict) else None
     if isinstance(value, bool):
         raise SmokeTestError("querysplunk result has an invalid matched count")
+    if value is None:
+        raise SmokeTestError("querysplunk result has an invalid matched count")
     try:
         count = int(value)
     except (TypeError, ValueError) as error:
-        raise SmokeTestError("querysplunk result has an invalid matched count") from error
+        raise SmokeTestError(
+            "querysplunk result has an invalid matched count"
+        ) from error
     if count < 0:
         raise SmokeTestError("querysplunk result has an invalid matched count")
     return count
