@@ -163,6 +163,91 @@ def write_candidate_files(
     )
 
 
+def verify_candidate_bundle(
+    directory: Path, version: str, classification: str, ref: str, commit: str
+) -> dict:
+    """Verify a downloaded candidate before it is eligible for publication."""
+    validate_candidate_identity(version, classification, ref)
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        fail("commit must be a full lowercase Git object ID")
+    if not directory.is_dir():
+        fail("release-candidate bundle directory does not exist")
+
+    entries = sorted(directory.iterdir(), key=lambda item: item.name)
+    if any(not entry.is_file() or entry.is_symlink() for entry in entries):
+        fail("release-candidate bundle may contain only regular files")
+
+    manifest_path = directory / "release-candidate.json"
+    checksums_path = directory / "SHA256SUMS"
+    if not manifest_path.is_file() or not checksums_path.is_file():
+        fail("release-candidate bundle is missing its manifest or checksums")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail("release-candidate manifest is not valid UTF-8 JSON: {}".format(error))
+
+    expected_manifest_keys = {
+        "artifacts",
+        "classification",
+        "commit",
+        "ref",
+        "schema_version",
+        "version",
+    }
+    if not isinstance(manifest, dict) or set(manifest) != expected_manifest_keys:
+        fail("release-candidate manifest has an unexpected schema")
+    expected_identity = {
+        "classification": classification,
+        "commit": commit,
+        "ref": ref,
+        "schema_version": 1,
+        "version": version,
+    }
+    for key, expected in expected_identity.items():
+        if manifest.get(key) != expected:
+            fail("release-candidate manifest has an unexpected {}".format(key))
+
+    recorded_artifacts = manifest.get("artifacts")
+    if not isinstance(recorded_artifacts, list):
+        fail("release-candidate manifest artifacts must be a list")
+    artifact_names = []
+    for artifact in recorded_artifacts:
+        if not isinstance(artifact, dict) or set(artifact) != {"filename", "sha256"}:
+            fail("release-candidate manifest has an invalid artifact entry")
+        filename = artifact.get("filename")
+        digest = artifact.get("sha256")
+        if (
+            not isinstance(filename, str)
+            or Path(filename).name != filename
+            or not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+        ):
+            fail("release-candidate manifest has an invalid artifact identity")
+        artifact_names.append(filename)
+
+    expected_names = sorted(artifact_names + ["SHA256SUMS", "release-candidate.json"])
+    if [entry.name for entry in entries] != expected_names:
+        fail("release-candidate bundle contains unexpected or missing files")
+
+    artifact_paths = [directory / name for name in artifact_names]
+    described_artifacts = describe_artifacts(artifact_paths, version)
+    if recorded_artifacts != described_artifacts:
+        fail("release-candidate artifact digests do not match the manifest")
+
+    expected_checksums = "".join(
+        "{}  {}\n".format(artifact["sha256"], artifact["filename"])
+        for artifact in described_artifacts
+    )
+    try:
+        actual_checksums = checksums_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        fail("SHA256SUMS is not valid UTF-8: {}".format(error))
+    if actual_checksums != expected_checksums:
+        fail("SHA256SUMS does not match the verified candidate artifacts")
+    return manifest
+
+
 def parse_arguments(arguments=None):
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -180,6 +265,13 @@ def parse_arguments(arguments=None):
     manifest.add_argument("--commit", required=True)
     manifest.add_argument("--output", type=Path, required=True)
     manifest.add_argument("artifacts", nargs="+")
+
+    bundle = subparsers.add_parser("bundle")
+    bundle.add_argument("--directory", type=Path, required=True)
+    bundle.add_argument("--version", required=True)
+    bundle.add_argument("--classification", required=True)
+    bundle.add_argument("--ref", required=True)
+    bundle.add_argument("--commit", required=True)
     return parser.parse_args(arguments)
 
 
@@ -191,15 +283,27 @@ def main(arguments=None):
         )
         print("Validated {version} from {ref} as {classification}.".format(**validated))
         return
-    write_candidate_files(
-        options.artifacts,
+    if options.command == "manifest":
+        write_candidate_files(
+            options.artifacts,
+            options.version,
+            options.classification,
+            options.ref,
+            options.commit,
+            options.output,
+        )
+        print("Wrote verified release-candidate manifest and SHA-256 checksums.")
+        return
+    verified = verify_candidate_bundle(
+        options.directory,
         options.version,
         options.classification,
         options.ref,
         options.commit,
-        options.output,
     )
-    print("Wrote verified release-candidate manifest and SHA-256 checksums.")
+    print(
+        "Verified {version} release-candidate bundle from {commit}.".format(**verified)
+    )
 
 
 if __name__ == "__main__":

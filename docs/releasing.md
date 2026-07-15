@@ -1,9 +1,12 @@
 # Release verification and publication
 
 Releases are built from the same source and compatibility contract used by
-normal CI. The current automated workflow is deliberately a dry run: it proves
-a candidate and retains the evidence for seven days, but it cannot create a
-tag, GitHub release, or PyPI upload.
+normal CI. The **Release verification** workflow is deliberately a dry run: it
+proves a candidate and retains the evidence for seven days, but it cannot
+create a tag, GitHub release, or PyPI upload. The separate **Publish verified
+GitHub release** workflow can consume that exact evidence only after a verified
+signed tag and explicit approval through the protected `GITHUB_RELEASE`
+environment.
 
 ## Distribution policy
 
@@ -16,7 +19,8 @@ permission.
 Publication remains a separate, approval-gated step tracked by issues
 [#20](https://github.com/georgestarcher/splunk_hec_aio/issues/20) and
 [#30](https://github.com/georgestarcher/splunk_hec_aio/issues/30). A successful
-dry run is evidence for that decision; it is not itself a release.
+dry run is evidence for that decision; it is not itself a release and cannot
+publish without a maintainer-created signed tag.
 
 ## Run the protected dry run
 
@@ -74,24 +78,71 @@ python .github/scripts/verify_release_candidate.py manifest \
 Use the actual candidate version in place of `2.1.1`. Local output is only
 diagnostic evidence; the GitHub-hosted dry run remains the release gate.
 
-## Final v2.1.2 publication gate
+## Publish an approved v2.1.2 candidate
 
-Before v2.1.2 is published, maintainers must also:
+Before creating the tag, confirm that the candidate commit is still the tip of
+`main`, record the successful Release verification and protected Live Splunk
+integration run URLs, and review the complete diff from v2.1.1. The final
+release commit must contain version `2.1.2`, the dated changelog section, and
+the approved compatibility classification without an unapproved runtime or
+wire-visible behavior change.
 
-- review the complete diff from v2.1.1 and confirm there is no unapproved
-  installed or wire-visible behavior change;
-- run the protected **Live Splunk integration** workflow against the exact
-  candidate commit and retain its successful run URL;
-- obtain approval for the final release commit, changelog, compatibility
-  classification, and generated notes;
-- create a new verified `v2.1.2` tag without changing any existing tag; and
-- attach the already verified wheel, source distribution, checksums, and
-  compatibility notes to the GitHub release.
+Create and locally verify an annotated signed tag at the exact candidate
+commit, then push only that new tag:
 
-Automated publication is not implemented by the dry-run workflow. Adding it
-requires a separately reviewed job with a protected GitHub environment,
-least-privilege write permission limited to that job, exact-tag validation,
-and a no-overwrite check.
+```shell
+git fetch --prune origin
+git switch main
+git pull --ff-only
+git tag -s v2.1.2 "$(git rev-parse HEAD)" \
+  -m "splunk_hec_aio v2.1.2 - final planned legacy-compatible v2 release"
+git tag -v v2.1.2
+git push origin refs/tags/v2.1.2
+```
+
+Never use `--force`, move an existing tag, or let the release workflow create a
+tag implicitly. Confirm GitHub marks the annotated tag signature as verified.
+If verification is absent, stop and correct the signing configuration rather
+than weakening the workflow.
+
+In GitHub Actions, run **Publish verified GitHub release** from `main` with:
+
+- version `2.1.2`;
+- the exact compatibility classification used by Release verification; and
+- the numeric run ID from that successful Release verification URL.
+
+The workflow first proves, under read-only permissions, that:
+
+- the signed annotated tag points to the current `main` commit;
+- GitHub verified the tag signature;
+- the referenced Release verification run completed successfully on that same
+  commit from `main`;
+- the run retains exactly one expected, unexpired candidate bundle;
+- its version, compatibility class, commit, manifest, artifact metadata, and
+  SHA-256 digests all agree; and
+- neither a release for the tag nor an unexpected bundle file exists.
+
+Only the final job has `contents: write`, and it pauses at the protected
+`GITHUB_RELEASE` environment. Review the tag, commit, verification run, and
+candidate evidence before approving the deployment. After approval, the job
+rechecks the tag and bundle, creates the release with `--verify-tag` and
+`--fail-on-no-commits`, attaches exactly the wheel, source distribution,
+`SHA256SUMS`, and `release-candidate.json`, prepends the compatibility evidence
+to generated notes, and verifies the published state, asset names, immutable
+release attestation, and each local asset against that attestation. Repository
+release immutability must remain enabled so the published tag and assets cannot
+be moved, replaced, or deleted and GitHub generates the release provenance.
+
+After publication, maintainers must also:
+
+- download all four v2.1.2 assets and independently recheck `SHA256SUMS`;
+- run `gh release verify v2.1.2` and `gh release verify-asset v2.1.2 FILE`
+  for each downloaded asset;
+- confirm both v2.1.1 and v2.1.2 releases and assets remain downloadable;
+- verify the release is neither a draft nor a pre-release and is marked latest;
+  and
+- record the release and workflow URLs on issue #30 before closing the release
+  work.
 
 ## Recovery
 
@@ -100,6 +151,12 @@ stop recommending it, document the impact, and publish a new corrective
 version after the normal gates. A GitHub release may be marked as a pre-release
 or otherwise withdrawn from recommendation while its immutable evidence and
 the prior releases remain available.
+
+If publication fails before the draft becomes public, inspect the draft and
+workflow logs. Because immutability begins only when publication completes, an
+administrator may delete that unpublished draft after confirming that no public
+release exists, then rerun the full validation and approval path. Never apply
+this cleanup procedure to a published release.
 
 Because v2 is not published on PyPI, there is no v2 package-index yank step. If
 a future major release adopts PyPI, it must use Trusted Publishing with a

@@ -103,11 +103,14 @@ SHA-256 checksums and a manifest tied to the candidate commit and v2
 compatibility classification.
 
 This workflow is a read-only dry run. It cannot create or move a tag, publish a
-GitHub release, upload to PyPI, or change the installed module. The final
-planned v2.1.2 release will keep the existing GitHub Releases distribution
-channel and preserve all prior releases. See
+GitHub release, upload to PyPI, or change the installed module. A separate
+approval-gated publication workflow accepts only that exact verified bundle
+after it matches a GitHub-verified signed tag. Future releases are immutable,
+so their tags, assets, and generated provenance cannot be replaced after
+publication. The final planned v2.1.2 release will keep the existing GitHub
+Releases distribution channel and preserve all prior releases. See
 [`docs/releasing.md`](docs/releasing.md) for the workflow inputs, evidence
-review, protected live Splunk check, final publication prerequisites, and
+review, protected live Splunk check, signed-tag and publication procedure, and
 recovery policy.
 
 ## Notes

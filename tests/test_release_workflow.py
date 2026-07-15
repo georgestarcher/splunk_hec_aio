@@ -11,13 +11,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / ".github" / "scripts" / "verify_release_candidate.py"
 RELEASE_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "release-verification.yml"
+PUBLICATION_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "release-publication.yml"
 REUSABLE_WORKFLOW_PATHS = (
     ROOT / ".github" / "workflows" / "compatibility.yml",
     ROOT / ".github" / "workflows" / "quality.yml",
     ROOT / ".github" / "workflows" / "packaging.yml",
 )
 IS_REPOSITORY_CHECKOUT = (ROOT / ".git").exists()
-REPOSITORY_ASSETS = (HELPER_PATH, RELEASE_WORKFLOW_PATH, *REUSABLE_WORKFLOW_PATHS)
+REPOSITORY_ASSETS = (
+    HELPER_PATH,
+    RELEASE_WORKFLOW_PATH,
+    PUBLICATION_WORKFLOW_PATH,
+    *REUSABLE_WORKFLOW_PATHS,
+)
 MISSING_REPOSITORY_ASSETS = [path for path in REPOSITORY_ASSETS if not path.is_file()]
 
 if IS_REPOSITORY_CHECKOUT and MISSING_REPOSITORY_ASSETS:
@@ -127,6 +133,67 @@ class TestReleaseCandidateHelper(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "does not match"):
                 verify_release_candidate.describe_artifacts(artifacts, "2.1.1")
 
+    def test_candidate_bundle_round_trip_verifies_exact_identity_and_files(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            artifacts = write_fake_artifacts(temporary_path, "2.1.1")
+            output = temporary_path / "candidate"
+            verify_release_candidate.write_candidate_files(
+                artifacts,
+                "2.1.1",
+                "no-observable-behavior-change",
+                "refs/heads/main",
+                "a" * 40,
+                output,
+            )
+            for artifact in artifacts:
+                artifact.rename(output / artifact.name)
+
+            verified = verify_release_candidate.verify_candidate_bundle(
+                output,
+                "2.1.1",
+                "no-observable-behavior-change",
+                "refs/heads/main",
+                "a" * 40,
+            )
+
+            self.assertEqual(verified["version"], "2.1.1")
+            self.assertEqual(verified["commit"], "a" * 40)
+
+    def test_candidate_bundle_rejects_tampering_and_unexpected_files(self):
+        for mutation in ("artifact", "extra"):
+            with self.subTest(mutation=mutation):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    temporary_path = Path(temporary_directory)
+                    artifacts = write_fake_artifacts(temporary_path, "2.1.1")
+                    output = temporary_path / "candidate"
+                    verify_release_candidate.write_candidate_files(
+                        artifacts,
+                        "2.1.1",
+                        "no-observable-behavior-change",
+                        "refs/heads/main",
+                        "a" * 40,
+                        output,
+                    )
+                    for artifact in artifacts:
+                        artifact.rename(output / artifact.name)
+                    if mutation == "artifact":
+                        wheel = next(output.glob("*.whl"))
+                        wheel.write_bytes(wheel.read_bytes() + b"tampered")
+                    else:
+                        (output / "unexpected.txt").write_text(
+                            "not releasable\n", encoding="utf-8"
+                        )
+
+                    with self.assertRaises(SystemExit):
+                        verify_release_candidate.verify_candidate_bundle(
+                            output,
+                            "2.1.1",
+                            "no-observable-behavior-change",
+                            "refs/heads/main",
+                            "a" * 40,
+                        )
+
 
 @unittest.skipUnless(
     RELEASE_ASSETS_AVAILABLE,
@@ -179,6 +246,50 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
         )
         self.assertIn("retention-days: 7", workflow)
         self.assertIn("persist-credentials: false", workflow)
+        for line in workflow.splitlines():
+            if "uses: actions/" in line:
+                reference = line.split("@", 1)[1].split()[0]
+                self.assertRegex(reference, r"^[0-9a-f]{40}$")
+
+    def test_publication_is_manual_main_only_and_approval_gated(self):
+        workflow = PUBLICATION_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("  workflow_dispatch:", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertNotIn("pull_request_target", workflow)
+        self.assertIn("permissions:\n  actions: read\n  contents: read", workflow)
+        self.assertEqual(workflow.count("contents: write"), 1)
+        self.assertNotIn("id-token: write", workflow)
+        self.assertIn("environment: GITHUB_RELEASE", workflow)
+        self.assertIn('[[ "$GITHUB_REF" != "refs/heads/main" ]]', workflow)
+        guard = workflow.index("Require the main branch before checkout")
+        first_checkout = workflow.index("Check out the verified release commit")
+        self.assertLess(guard, first_checkout)
+
+    def test_publication_consumes_verified_evidence_without_rebuilding(self):
+        workflow = PUBLICATION_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("release-verification.yml", workflow)
+        self.assertIn('"$RUN_CONCLUSION" != "success"', workflow)
+        self.assertIn('"$RUN_COMMIT" != "$TAG_COMMIT"', workflow)
+        self.assertIn("gh run download", workflow)
+        self.assertIn("verify_release_candidate.py bundle", workflow)
+        self.assertNotIn("python -m build", workflow)
+        self.assertNotIn("upload-artifact", workflow)
+
+    def test_publication_requires_a_verified_annotated_tag_and_no_overwrite(self):
+        workflow = PUBLICATION_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('"$TAG_REF_TYPE" != "tag"', workflow)
+        self.assertIn('"$TAG_VERIFIED" != "true"', workflow)
+        self.assertIn('"$TAG_COMMIT" != "$MAIN_COMMIT"', workflow)
+        self.assertIn("--verify-tag", workflow)
+        self.assertIn("--fail-on-no-commits", workflow)
+        self.assertIn("--generate-notes", workflow)
+        self.assertIn("Release already exists", workflow)
+        self.assertIn("Confirm the signed tag is still unchanged", workflow)
+        self.assertIn('gh release verify "$EXPECTED_TAG"', workflow)
+        self.assertIn('gh release verify-asset "$EXPECTED_TAG"', workflow)
         for line in workflow.splitlines():
             if "uses: actions/" in line:
                 reference = line.split("@", 1)[1].split()[0]
