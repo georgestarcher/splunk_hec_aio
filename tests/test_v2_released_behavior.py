@@ -77,7 +77,7 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.assertEqual(self.sender.get_concurrent_post_limit(), 20)
         self.assertIsNone(self.sender.set_post_max_byte_size(1))
         self.assertEqual(self.sender.get_post_max_byte_size(), 4000)
-        self.assertIsNone(self.sender.set_post_max_byte_size(1_000_000))
+        self.assertIsNone(self.sender.set_post_max_byte_size(1000000))
         self.assertEqual(self.sender.get_post_max_byte_size(), 800000)
 
     def test_json_endpoint_headers_and_retry_defaults(self):
