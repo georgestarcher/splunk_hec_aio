@@ -26,15 +26,23 @@ updates:
           - patch
       python-quality:
         patterns:
+          - build
           - hypothesis
           - mypy
           - pip-audit
           - pytest
           - pytest-cov
           - ruff
+          - twine
         update-types:
           - minor
           - patch
+    ignore:
+      # build 1.5.0+ requires Python 3.10, while the v2 maintenance line
+      # intentionally keeps its development and release tooling on Python 3.9.
+      - dependency-name: build
+        versions:
+          - ">=1.5.0"
 
   - package-ecosystem: github-actions
     directory: "/"

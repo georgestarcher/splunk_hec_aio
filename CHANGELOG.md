@@ -35,6 +35,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Made the runtime module version the authoritative distribution version while
   preserving version `2.1.1`, the distribution name, dependency declarations,
   `python_requires`, package location, and documented nested import.
+- Updated the Python 3.9-compatible packaging frontend and constrained
+  Dependabot from proposing releases that require Python 3.10.
 - Moved the historical network-dependent test module out of the installed
   package and into `tests/legacy/`.
 
