@@ -12,5 +12,9 @@ approved change that replaces the behavior, and follow the rules in
 Run the suite from the repository root:
 
 ```shell
-python -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s tests -v
 ```
+
+The initial compatibility CI job runs this command on Python 3.9 because the
+baseline is locally verified on Python 3.9.6. That bootstrap target is not a
+declaration of the minimum or complete supported Python range.
