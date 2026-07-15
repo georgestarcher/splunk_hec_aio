@@ -33,6 +33,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - A read-only manual release-verification workflow that reuses the protected
   compatibility, quality, and packaging gates, verifies the exact wheel and
   source distribution, and uploads a temporary checksummed candidate manifest.
+- A separate approval-gated GitHub Release workflow that accepts only a
+  successful, unexpired verification bundle for the current signed tag and
+  never creates or moves tags, overwrites an existing release, or publishes
+  package-index artifacts.
+- Pre-publication source-equivalence, canonical-filename, dispatched-revision,
+  and post-approval branch-tip checks for the immutable release path.
 - Release documentation for the GitHub-Releases-only final v2 policy, protected
   live verification, publication prerequisites, and no-overwrite recovery.
 

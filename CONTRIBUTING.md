@@ -127,10 +127,13 @@ SHA-256 checksums, and a manifest tying them to a full commit and an allowed v2
 compatibility classification.
 
 The workflow is a non-publishing dry run. It has no tag trigger, secret,
-environment, GitHub Release write permission, or PyPI path. Follow
-[`docs/releasing.md`](docs/releasing.md) for inputs, evidence review, the
-separate live-integration gate, final publication prerequisites, and recovery
-rules.
+environment, GitHub Release write permission, or PyPI path. A separate
+**Publish verified GitHub release** workflow consumes a successful retained
+bundle only after it matches the current GitHub-verified annotated tag and a
+maintainer approves the protected `GITHUB_RELEASE` environment. Follow
+[`docs/releasing.md`](docs/releasing.md) for inputs, evidence review, signed-tag
+creation, the separate live-integration gate, publication approval, and
+recovery rules.
 
 ## Run the protected live integration test
 
