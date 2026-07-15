@@ -2,7 +2,6 @@ import configparser
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -12,7 +11,9 @@ class TestPackagingWorkflow(unittest.TestCase):
         configuration.read(ROOT / "setup.cfg", encoding="utf-8")
         development_requirements = {
             requirement.strip()
-            for requirement in configuration["options.extras_require"]["dev"].splitlines()
+            for requirement in configuration["options.extras_require"][
+                "dev"
+            ].splitlines()
             if requirement.strip()
         }
         workflow = (ROOT / ".github" / "workflows" / "packaging.yml").read_text(
