@@ -53,6 +53,35 @@ standard contributor test command. CI initially runs this suite on Python 3.9,
 which is an observed bootstrap target and does not establish the project's
 minimum or complete supported Python range.
 
+## Run the protected live integration test
+
+Maintainers can run the **Live Splunk integration** workflow manually after a
+change reaches `main`. This workflow is separate from pull-request CI and uses
+the protected `SPLUNK_INTEGRATION` GitHub environment, which requires approval
+before its secrets are released. It must never be enabled for fork pull
+requests or changed to use `pull_request_target`.
+
+The environment requires two different, least-privilege credentials:
+
+- `SPLUNK_HEC_TOKEN`, an ingest-only HEC token;
+- `SPLUNKTOKEN`, a search-only Splunk REST token.
+
+It also requires secret values `SPLUNK_HEC_HOST` and `SPLUNKBASEURL`, plus
+environment variables `SPLUNK_HEC_PORT`, `SPLUNK_HEC_INDEX`,
+`SPLUNK_HEC_SOURCE`, `SPLUNK_HEC_SOURCETYPE`, `SPLUNKAPP`,
+`SPLUNKTLSVERIFY`, and `SPLUNKTIMEOUT`. TLS verification must be enabled. Do
+not copy any of these values into workflow logs, committed files, or issue
+reports.
+
+For each run, the workflow sends one event with a unique `ci_test_id` through
+the released `SplunkHecAio` interface. It renders the committed
+`.github/querysplunk/hec-smoke.yml` template into a temporary file, validates
+it with a pinned and checksum-verified querysplunk release, and searches for
+the marker for at most 80 seconds. One or more matches succeeds because HEC
+retries can result in at-least-once delivery; zero matches fails. Failure
+artifacts contain only a bounded status, attempt number, exit code, and match
+count—not tokens, endpoints, event bodies, SPL, or raw search results.
+
 ## Preserve the v2 contract
 
 Read [`docs/compatibility.md`](docs/compatibility.md) before changing public or

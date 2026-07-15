@@ -18,3 +18,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error python -m unittest discover -s te
 The initial compatibility CI job runs this command on Python 3.9 because the
 baseline is locally verified on Python 3.9.6. That bootstrap target is not a
 declaration of the minimum or complete supported Python range.
+
+`test_live_integration_support.py` tests the live-workflow helper, query
+template, and security boundaries entirely offline. The real HEC send and
+querysplunk search run only from the manually approved GitHub Actions workflow.
