@@ -90,7 +90,8 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
             self.assertIn("sourcetype=splunk_hec_aio_ci", rendered)
             self.assertIn('ci_test_id="gha-123-1-abc"', rendered)
             self.assertNotIn("__SPLUNK_", rendered)
-            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+            if sys.platform != "win32":
+                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
     def test_render_query_rejects_search_injection_characters(self):
         environment = valid_environment()
