@@ -50,6 +50,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Dependabot from proposing releases that require Python 3.10.
 - Moved the historical network-dependent test module out of the installed
   package and into `tests/legacy/`.
+- Reworked the README to distinguish the current release from planned v2.1.2,
+  pin stable installation to a release tag, and provide secret-safe setup,
+  product, payload-mode, performance, and TLS guidance.
 
 ### Removed
 

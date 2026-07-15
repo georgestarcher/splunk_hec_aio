@@ -1,5 +1,7 @@
 import builtins
 import copy
+import os
+import re
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,6 +10,50 @@ import splunk_hec_aio.splunk_hec_aio as runtime_module
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_PATH = ROOT / "example.py"
+README_PATH = ROOT / "README.md"
+
+
+class TestReadmeQuickStart(unittest.TestCase):
+    def test_quick_start_uses_the_public_class_without_network_access(self):
+        readme = README_PATH.read_text(encoding="utf-8")
+        section = re.search(
+            r"^## Quick start\n(?P<body>.*?)(?=^## )", readme, re.MULTILINE | re.DOTALL
+        )
+        self.assertIsNotNone(section)
+        code_block = re.search(
+            r"```python\n(?P<code>.*?)```", section.group("body"), re.DOTALL
+        )
+        self.assertIsNotNone(code_block)
+
+        sender = MagicMock()
+        environment = {
+            "SPLUNK_HEC_HOST": "splunk.example.com",
+            "SPLUNK_HEC_TOKEN": "hec-token",
+            "SPLUNK_HEC_PORT": "443",
+        }
+        with (
+            patch.object(
+                runtime_module, "SplunkHecAio", return_value=sender
+            ) as sender_class,
+            patch.dict(os.environ, environment, clear=False),
+        ):
+            exec(compile(code_block.group("code"), str(README_PATH), "exec"), {})
+
+        sender_class.assert_called_once_with("splunk.example.com", "hec-token")
+        sender.set_port.assert_called_once_with(443)
+        sender.set_index.assert_called_once_with("starcher_hec")
+        sender.set_sourcetype.assert_called_once_with("aio_json")
+        payload = sender.post_data.call_args.args[0]
+        self.assertEqual(payload["event"]["message"], "hello from splunk_hec_aio")
+        sender.flush.assert_called_once_with()
+
+    def test_readme_distinguishes_current_and_planned_releases(self):
+        readme = README_PATH.read_text(encoding="utf-8")
+
+        self.assertNotIn("Version/Date:", readme)
+        self.assertIn("latest published release", readme)
+        self.assertIn("splunk_hec_aio.git@v2.1.1", readme)
+        self.assertIn("final planned legacy-compatible v2", readme)
 
 
 @unittest.skipUnless(

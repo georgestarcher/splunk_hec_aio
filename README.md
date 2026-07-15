@@ -1,13 +1,81 @@
-# Python Class for Sending Events to Splunk HTTP Event Collector
+# splunk_hec_aio
 
-Version/Date: 2.1.1 2024-01-18
+An asynchronous Python client for batching and sending JSON or raw events to a
+Splunk HTTP Event Collector (HEC).
 
-Author: George Starcher (starcher)
-Email: george@georgestarcher.com
+The latest published release is
+[`v2.1.1`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.1).
+The repository is being hardened for the final planned legacy-compatible v2
+release, v2.1.2; until that release is tagged, the installed module version
+remains `2.1.1`. Existing releases remain available on the
+[GitHub Releases page](https://github.com/georgestarcher/splunk_hec_aio/releases).
 
-This code is presented **AS IS** under the [MIT License](LICENSE).
+Maintained by George Starcher (starcher). Licensed under the
+[MIT License](LICENSE).
 
-## Compatibility
+## Supported Splunk products
+
+- Splunk Cloud Platform with HEC enabled
+- Splunk Enterprise with HEC enabled
+
+Your HEC token must be allowed to write to every index selected by the client.
+
+## Install
+
+The v2 line is distributed through GitHub Releases rather than PyPI. Pin the
+tag when installing the current stable release:
+
+```shell
+python -m pip install \
+  "git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.1"
+```
+
+Installing from untagged `main` opts into unreleased repository changes. For a
+local checkout used for development, follow the environment and test commands
+in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Quick start
+
+Keep HEC tokens outside source code and load them from a secret manager or the
+process environment:
+
+```python
+import os
+import time
+
+from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
+
+sender = SplunkHecAio(
+    os.environ["SPLUNK_HEC_HOST"],
+    os.environ["SPLUNK_HEC_TOKEN"],
+)
+sender.set_port(int(os.environ.get("SPLUNK_HEC_PORT", "443")))
+sender.set_index("starcher_hec")
+sender.set_sourcetype("aio_json")
+
+sender.post_data(
+    {
+        "time": str(round(time.time(), 3)),
+        "event": {"message": "hello from splunk_hec_aio"},
+    }
+)
+
+# Always flush before the process exits so the final queued batch is sent.
+sender.flush()
+```
+
+Port `443` is typical for Splunk Cloud Platform. Splunk Enterprise HEC commonly
+uses port `8088`; use the port configured by your Splunk administrator. See
+[`examples/README.md`](examples/README.md) for the maintained full example and
+its safety notes.
+
+The documented v2 import remains:
+
+```python
+from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
+```
+
+## Compatibility and project documentation
 
 The v2 release line preserves the released public API and existing user
 behavior while the repository is modernized. The compatibility policy and
@@ -42,104 +110,43 @@ channel and preserve all prior releases. See
 review, protected live Splunk check, final publication prerequisites, and
 recovery policy.
 
-## Description:
-
-This is a python class file for use with other python scripts to send events to a Splunk http event collector.
-
-## Supported product(s): 
-
-* Splunk
-
-## Using this Python Class
-
-### Configuration: Manual
-
-You will need to put this with any other code and import the class as needed.
-Instantiate a copy of the SplunkHecAio object and use to generate and submit payloads as you see in the example.
-
-### Configuration: With pip
-
-    pip3 install git+https://github.com/georgestarcher/splunk_hec_aio.git
-
-The installed distribution preserves the existing nested import used by the
-v2 release line:
-
-```python
-from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
-```
-
-### Example:
-
-        import logging
-        import sys
-        import time
-        from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
-
-        # help(SplunkHecAio)
-
-        # init logging config, this is the job of your main code using this class.
-        logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S %z')
-
-        log = logging.getLogger(u"MAIN")
-        log.setLevel(logging.INFO)
-
-        # instantiate a HEC AIO Sender using server name and HEC token.
-        testHec = SplunkHecAio("MYINSTANCE.splunkcloud.com","MYTOKEN")
-
-        # Set HEC logging level (Default is INFO, can set to DEBUG if needed)
-        testHec.log.setLevel(logging.INFO)
-
-        # Splunkcloud needs port 443 (Default is 8088)
-        testHec.set_port(443)
-
-        # Set Index and Sourctype for Post Parameters. Very helpful when using raw data mode.
-        testHec.set_index("starcher_hec")
-        testHec.set_sourcetype("aio_json")
-
-        # Setting Post Limits:
-        # We set to maximum number of AIO concurrent POSTs
-        testHec.set_concurrent_post_limit(20)
-        # set_post_max_byte_size: defaults to 512000 (max 800000)
-        # We set the smaller 10,000 max size to force data to spread across the AIO concurrent POSTs
-        testHec.set_post_max_byte_size(10000)
-
-        if not testHec.check_connectivity():
-            sys.exit(1)
-
-        testJSON = {}
-
-        log.info("Starting Data Post")
-        for i in range(100000):
-            testJSON.update({"event":{"count":i,"name":"dolly bean"}})
-            testJSON.update({"time":str(round(time.time(),3))})
-            testHec.post_data(testJSON)
-
-        # Always call flush method to ensure last data is posted to Splunk HEC
-        testHec.flush()
-
 ## Notes
 
-### Post Performance:
+### Post performance
 
-I recommend testing your data payloads to determine their maximum size. Then lower the set_post_max_byte_size down to get in the range of 100-200 events per HTTP post. This helps spread the workload across the AIO HTTP posts for performance. The default set_post_max_byte_size is 512000. So lower it if your max event payload is notably smaller. Raise as needed up to the 800000 maximum. Then if needed adjust set_concurrent_post_limit. Maximum is 20 AIO concurrent posts, default is 10.  You could run in DEBUG Logging to see the post spread across when first developing your code.
+Test with representative payloads before tuning. The default maximum batch size
+is 512,000 bytes and the accepted range is 4,000 through 800,000 bytes. The
+default concurrent-post limit is 10 and the maximum is 20. Smaller batches can
+spread work across concurrent requests, but the best values depend on event
+size, network latency, and the Splunk deployment. Enable DEBUG logging during a
+controlled test when you need to inspect how events are divided among posts.
 
-### JSON vs RAW mode:
+### JSON and raw modes
 
-Typically when working in Python your data is a list of dictionary (JSON) objects. This class is intended for that as the norm so you can iterate over the data and blast it into Splunk HEC with minimal work. 
+JSON payload mode is enabled by default. To send raw string lines, call
+`set_payload_json_format(False)` before `post_data`. Optional metadata setters
+work in both modes:
 
-If you choose to post raw string lines you will want to set set_payload_json_format to False. Then your payload input to post_data should be a string. To make forcing the index, sourcetype, host and source of raw events easier set these prior to data posting.
+```python
+sender.set_index("test")
+sender.set_sourcetype("syslog")
+sender.set_host("dollybean")
+sender.set_source("aio_python")
+```
 
-    hec_server.index = "test"
-    hec_server.sourcetype = "syslog"
-    hec_server.set_host("dollybean")
-    hec_server.set_source("aio_python")
-
-This works for either RAW or JSON. The class will automatically set the above fields on your JSON payload for you if used and in JSON mode. Otherwise it adds the values to the RAW URL endpoint as needed by Splunk.
+In JSON mode the client adds configured metadata to the HEC payload. In raw
+mode it adds the supported values to the request parameters.
 
 ### 400 Bad Request
 
-If you are receiving `400 Bad Request` and you are setting an index confirm the index you are attempting to send to is in the allowed list for your HEC Token.
+If Splunk returns `400 Bad Request` while an index is configured, confirm that
+the HEC token is allowed to write to that index.
 
-### Default Splunk
+### TLS verification
 
-If you are testing with an out of box Splunk install. You are still using the self signed certificates. Make sure you set `set_verify_tls(False)` on your HEC object during setup.
+TLS certificate verification is enabled by default and should remain enabled
+for Splunk Cloud Platform and production Splunk Enterprise deployments. A local
+Splunk Enterprise test instance may initially use a self-signed certificate;
+prefer installing its CA certificate. Use `set_verify_tls(False)` only for an
+isolated development instance whose identity you have verified, never as a
+general fix for certificate errors.
