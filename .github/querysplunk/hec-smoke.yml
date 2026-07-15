@@ -1,0 +1,29 @@
+app: search
+output_file: splunkresults.json
+mode: job
+search: |
+  search index=__SPLUNK_HEC_INDEX__
+    sourcetype=__SPLUNK_HEC_SOURCETYPE__
+    ci_test_id="__SPLUNK_HEC_TEST_ID__"
+  | stats count as matched
+
+dispatch:
+  earliest_time: "-10m"
+  latest_time: "now"
+  max_count: 1
+  status_buckets: 0
+  required_fields:
+    - ci_test_id
+
+results:
+  endpoint: auto
+  output_mode: json
+  count: 1
+  offset: 0
+
+safety:
+  allow_old_earliest: false
+  allow_index_wildcard: false
+
+diagnostics:
+  search_log: summary

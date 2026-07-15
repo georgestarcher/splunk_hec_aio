@@ -1,0 +1,194 @@
+name: Live Splunk integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-splunk-integration
+  cancel-in-progress: false
+
+env:
+  QUERYSPLUNK_VERSION: v2.2.0
+  QUERYSPLUNK_ARCHIVE: splunkquery-v2.2.0-linux-amd64.tar.gz
+  QUERYSPLUNK_SHA256: aac64cf0400a16ac76d2f2e3349d5e093872ba87b20a30bef87b34847532607d
+
+jobs:
+  hec-and-search:
+    name: Live integration / HEC and search
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: SPLUNK_INTEGRATION
+
+    steps:
+      - name: Initialize sanitized diagnostics
+        shell: bash
+        run: printf 'status=starting\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.9 bootstrap target
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.9"
+
+      - name: Install runtime requirements
+        run: python -m pip install -r requirements.txt
+
+      - name: Install checksum-verified querysplunk
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=installing_querysplunk\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          archive="$RUNNER_TEMP/$QUERYSPLUNK_ARCHIVE"
+          release_url="https://github.com/georgestarcher/querysplunk/releases/download/$QUERYSPLUNK_VERSION/$QUERYSPLUNK_ARCHIVE"
+          curl --fail --location --silent --show-error "$release_url" --output "$archive"
+          printf '%s  %s\n' "$QUERYSPLUNK_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          binary="$RUNNER_TEMP/splunkquery-v2.2.0-linux-amd64/splunkquery"
+          test -x "$binary"
+          echo "QUERYSPLUNK_BIN=$binary" >> "$GITHUB_ENV"
+          "$binary" -version
+
+      - name: Generate unique smoke marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(python -c 'import uuid; print(uuid.uuid4())')"
+          echo "SPLUNK_HEC_TEST_ID=$marker" >> "$GITHUB_ENV"
+
+      - name: Validate protected integration configuration
+        env:
+          SPLUNK_HEC_HOST: ${{ secrets.SPLUNK_HEC_HOST }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+          SPLUNK_HEC_PORT: ${{ vars.SPLUNK_HEC_PORT }}
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCE: ${{ vars.SPLUNK_HEC_SOURCE }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNKBASEURL: ${{ secrets.SPLUNKBASEURL }}
+          SPLUNKTOKEN: ${{ secrets.SPLUNKTOKEN }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+          SPLUNKTIMEOUT: ${{ vars.SPLUNKTIMEOUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=validating_configuration\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          python .github/scripts/live_hec_smoke.py preflight
+
+      - name: Render and validate the smoke search
+        env:
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=rendering_query\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          rendered="$RUNNER_TEMP/hec-smoke.yml"
+          python .github/scripts/live_hec_smoke.py render-query \
+            .github/querysplunk/hec-smoke.yml "$rendered"
+          "$QUERYSPLUNK_BIN" -validate-config "$rendered" \
+            -app "$SPLUNKAPP" -o "$RUNNER_TEMP/splunkresults.json" > /dev/null
+          echo "RENDERED_QUERY_CONFIG=$rendered" >> "$GITHUB_ENV"
+
+      - name: Send smoke event through SplunkHecAio
+        env:
+          SPLUNK_HEC_HOST: ${{ secrets.SPLUNK_HEC_HOST }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+          SPLUNK_HEC_PORT: ${{ vars.SPLUNK_HEC_PORT }}
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCE: ${{ vars.SPLUNK_HEC_SOURCE }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=sending_event\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          python .github/scripts/live_hec_smoke.py send
+
+      - name: Confirm the event is searchable
+        env:
+          SPLUNKBASEURL: ${{ secrets.SPLUNKBASEURL }}
+          SPLUNKTOKEN: ${{ secrets.SPLUNKTOKEN }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+          SPLUNKTIMEOUT: ${{ vars.SPLUNKTIMEOUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostics="$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          printf 'status=searching\n' > "$diagnostics"
+          started=$SECONDS
+          deadline_seconds=80
+          attempt=0
+
+          while (( SECONDS - started < deadline_seconds )); do
+            (( attempt += 1 ))
+            elapsed=$((SECONDS - started))
+            remaining=$((deadline_seconds - elapsed))
+            result="$RUNNER_TEMP/splunkresults-$attempt.json"
+            events="$RUNNER_TEMP/querysplunk-$attempt.jsonl"
+
+            set +e
+            timeout --signal=TERM --kill-after=5s "${remaining}s" \
+              "$QUERYSPLUNK_BIN" -json-events -config "$RENDERED_QUERY_CONFIG" \
+              -app "$SPLUNKAPP" -o "$result" 2> "$events"
+            query_status=$?
+            set -e
+
+            if (( query_status != 0 )); then
+              printf 'status=query_failed\nattempt=%s\nexit_code=%s\n' \
+                "$attempt" "$query_status" > "$diagnostics"
+              echo "Live search failed before a result could be verified." >&2
+              exit 1
+            fi
+
+            set +e
+            matched="$(python .github/scripts/live_hec_smoke.py match-count "$result" 2> /dev/null)"
+            parse_status=$?
+            set -e
+            if (( parse_status != 0 )); then
+              printf 'status=invalid_results\nattempt=%s\n' "$attempt" > "$diagnostics"
+              echo "Live search returned an invalid aggregate result." >&2
+              exit 1
+            fi
+            if (( matched >= 1 )); then
+              printf 'status=success\nattempt=%s\nmatched=%s\n' \
+                "$attempt" "$matched" > "$diagnostics"
+              echo "Live integration succeeded with at least one matching event."
+              exit 0
+            fi
+
+            printf 'status=searching\nattempt=%s\nmatched=0\n' \
+              "$attempt" > "$diagnostics"
+            elapsed=$((SECONDS - started))
+            remaining=$((deadline_seconds - elapsed))
+            if (( remaining <= 0 )); then
+              break
+            fi
+            sleep_seconds=10
+            if (( remaining < sleep_seconds )); then
+              sleep_seconds=$remaining
+            fi
+            sleep "$sleep_seconds"
+          done
+
+          printf 'status=event_not_found\nattempts=%s\nmatched=0\n' \
+            "$attempt" > "$diagnostics"
+          echo "No matching event became searchable within 80 seconds." >&2
+          exit 1
+
+      - name: Upload sanitized failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: splunk-hec-live-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/splunk-hec-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 7
