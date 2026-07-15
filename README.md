@@ -21,6 +21,7 @@ Additional project documentation:
 - [Changelog](CHANGELOG.md)
 - [Examples](examples/README.md)
 - [License](LICENSE)
+- [Security policy](SECURITY.md)
 - [Modernization roadmap](https://github.com/users/georgestarcher/projects/2)
 
 ## Description:

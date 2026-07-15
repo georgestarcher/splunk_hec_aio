@@ -28,6 +28,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   the Python 3.9 and 3.13 Splunk-aligned anchors.
 - Extracted-source-distribution test execution and an offline mocked check of
   the maintained root example.
+- A security policy, private vulnerability-reporting route, and security-aware
+  public issue routing.
 
 ### Changed
 
