@@ -105,8 +105,13 @@ jobs:
           RUN_COMMIT="$(jq -r '.head_sha' <<<"$RUN_JSON")"
           RUN_BRANCH="$(jq -r '.head_branch' <<<"$RUN_JSON")"
           RUN_ATTEMPT="$(jq -r '.run_attempt' <<<"$RUN_JSON")"
+          EXPECTED_RUN_PATH=".github/workflows/release-verification.yml"
+          if [[ "$RUN_PATH" != "$EXPECTED_RUN_PATH" ]] && \
+             [[ "$RUN_PATH" != "${EXPECTED_RUN_PATH}@main" ]]; then
+            echo "Run $VERIFICATION_RUN_ID did not execute the release-verification workflow on main." >&2
+            exit 1
+          fi
           if [[ "$RUN_EVENT" != "workflow_dispatch" ]] || \
-             [[ "$RUN_PATH" != ".github/workflows/release-verification.yml" ]] || \
              [[ "$RUN_STATUS" != "completed" ]] || \
              [[ "$RUN_CONCLUSION" != "success" ]] || \
              [[ "$RUN_BRANCH" != "main" ]] || \

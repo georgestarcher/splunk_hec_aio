@@ -349,7 +349,11 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
     def test_publication_consumes_verified_evidence_without_rebuilding(self):
         workflow = PUBLICATION_WORKFLOW_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("release-verification.yml", workflow)
+        self.assertIn(
+            'EXPECTED_RUN_PATH=".github/workflows/release-verification.yml"', workflow
+        )
+        self.assertIn('"$RUN_PATH" != "$EXPECTED_RUN_PATH"', workflow)
+        self.assertIn('"$RUN_PATH" != "${EXPECTED_RUN_PATH}@main"', workflow)
         self.assertIn('"$RUN_CONCLUSION" != "success"', workflow)
         self.assertIn('"$RUN_COMMIT" != "$TAG_COMMIT"', workflow)
         self.assertIn('"$GITHUB_SHA" != "$TAG_COMMIT"', workflow)
