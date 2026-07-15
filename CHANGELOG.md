@@ -22,6 +22,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   branch coverage, and dependency vulnerability auditing.
 - Bounded property tests for queue ordering, transport round trips, and batch
   preservation in the modern quality environment.
+- Low-noise weekly Dependabot updates for Python dependencies, quality tools,
+  and pinned GitHub Actions.
 
 ### Changed
 

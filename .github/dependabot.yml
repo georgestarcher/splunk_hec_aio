@@ -1,0 +1,57 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directories:
+      - "/"
+      - "/.github/requirements"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    rebase-strategy: auto
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      python-runtime:
+        patterns:
+          - aiohttp
+          - aiohttp-retry
+        update-types:
+          - minor
+          - patch
+      python-quality:
+        patterns:
+          - hypothesis
+          - mypy
+          - pip-audit
+          - pytest
+          - pytest-cov
+          - ruff
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    rebase-strategy: auto
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
