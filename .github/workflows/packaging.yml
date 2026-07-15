@@ -90,3 +90,21 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error \
             "$environment/bin/python" -m unittest discover \
               -s tests -p 'test_v2_public_api.py' -v
+
+      - name: Run the test suite shipped in the source distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/sdist-environment"
+          extracted="$RUNNER_TEMP/sdist-suite"
+          mkdir -p "$extracted"
+          sdists=("$GITHUB_WORKSPACE"/dist/*.tar.gz)
+          test "${#sdists[@]}" -eq 1
+          tar -xzf "${sdists[0]}" -C "$extracted"
+          roots=("$extracted"/*/)
+          test "${#roots[@]}" -eq 1
+          test -d "${roots[0]}"
+          cd "${roots[0]}"
+          PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=error \
+            "$environment/bin/python" -m unittest discover \
+              -s tests -p 'test_*.py' -v
