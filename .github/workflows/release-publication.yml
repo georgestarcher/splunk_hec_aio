@@ -92,6 +92,10 @@ jobs:
             echo "$EXPECTED_TAG must point to the current main commit." >&2
             exit 1
           fi
+          if [[ "$GITHUB_SHA" != "$TAG_COMMIT" ]]; then
+            echo "The dispatched workflow revision must match $EXPECTED_TAG." >&2
+            exit 1
+          fi
 
           RUN_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID")"
           RUN_EVENT="$(jq -r '.event' <<<"$RUN_JSON")"
@@ -185,7 +189,8 @@ jobs:
             --version "$CANDIDATE_VERSION" \
             --classification "$COMPATIBILITY_CLASSIFICATION" \
             --ref refs/heads/main \
-            --commit "$CANDIDATE_COMMIT"
+            --commit "$CANDIDATE_COMMIT" \
+            --source-root .
 
       - name: Confirm preparation did not change tracked files
         run: git diff --exit-code
@@ -200,6 +205,7 @@ jobs:
     environment: GITHUB_RELEASE
     permissions:
       actions: read
+      attestations: read
       contents: write
 
     steps:
@@ -231,6 +237,7 @@ jobs:
           --classification "$COMPATIBILITY_CLASSIFICATION"
           --ref refs/heads/main
           --commit "$CANDIDATE_COMMIT"
+          --source-root .
 
       - name: Confirm the signed tag is still unchanged
         env:
@@ -253,6 +260,13 @@ jobs:
           if [[ "$(jq -r '.verification.verified // false' <<<"$TAG_JSON")" != "true" ]] || \
              [[ "$(jq -r '.object.sha' <<<"$TAG_JSON")" != "$EXPECTED_COMMIT" ]]; then
             echo "$EXPECTED_TAG signature or commit no longer matches the approval." >&2
+            exit 1
+          fi
+          CURRENT_MAIN_COMMIT="$(
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ "$CURRENT_MAIN_COMMIT" != "$EXPECTED_COMMIT" ]]; then
+            echo "main changed after validation; refusing to publish $EXPECTED_TAG." >&2
             exit 1
           fi
 

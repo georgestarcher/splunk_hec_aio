@@ -10,7 +10,7 @@ import tarfile
 import zipfile
 from email.parser import BytesParser
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, Optional
 
 STABLE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 ALLOWED_CLASSIFICATIONS = {
@@ -19,6 +19,10 @@ ALLOWED_CLASSIFICATIONS = {
     "opt-in-addition",
 }
 VERSION_ATTRIBUTE = "splunk_hec_aio.splunk_hec_aio.__version__"
+RUNTIME_FILES = (
+    Path("splunk_hec_aio/__init__.py"),
+    Path("splunk_hec_aio/splunk_hec_aio.py"),
+)
 
 
 def fail(message: str) -> NoReturn:
@@ -110,12 +114,64 @@ def artifact_metadata(path: Path):
     fail("unsupported release artifact: {}".format(path))
 
 
-def describe_artifacts(paths, version: str):
+def canonical_artifact_names(version: str):
+    return {
+        "splunk_hec_aio-{}-py3-none-any.whl".format(version),
+        "splunk_hec_aio-{}.tar.gz".format(version),
+    }
+
+
+def artifact_runtime_bytes(path: Path, version: str, relative_path: Path) -> bytes:
+    member = relative_path.as_posix()
+    if path.suffix == ".whl":
+        try:
+            with zipfile.ZipFile(path) as archive:
+                return archive.read(member)
+        except KeyError:
+            fail("{} is missing packaged runtime file {}".format(path, member))
+    if path.name.endswith(".tar.gz"):
+        member = "splunk_hec_aio-{}/{}".format(version, member)
+        with tarfile.open(path, "r:gz") as archive:
+            try:
+                archive_member = archive.getmember(member)
+            except KeyError:
+                fail("{} is missing packaged runtime file {}".format(path, member))
+            if not archive_member.isfile():
+                fail("{} packaged runtime member {} is not a file".format(path, member))
+            extracted = archive.extractfile(archive_member)
+            if extracted is None:
+                fail(
+                    "{} packaged runtime file {} could not be read".format(path, member)
+                )
+            return extracted.read()
+    fail("unsupported release artifact: {}".format(path))
+
+
+def verify_source_equivalence(paths, version: str, source_root: Path):
+    for relative_path in RUNTIME_FILES:
+        source_path = source_root / relative_path
+        if not source_path.is_file() or source_path.is_symlink():
+            fail(
+                "signed source is missing regular runtime file {}".format(relative_path)
+            )
+        source_bytes = source_path.read_bytes()
+        for artifact in paths:
+            if artifact_runtime_bytes(artifact, version, relative_path) != source_bytes:
+                fail(
+                    "{} runtime file {} does not match the signed source".format(
+                        artifact, relative_path
+                    )
+                )
+
+
+def describe_artifacts(paths, version: str, source_root: Optional[Path] = None):
     artifacts = [Path(path) for path in paths]
     wheels = [path for path in artifacts if path.suffix == ".whl"]
     sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
     if len(artifacts) != 2 or len(wheels) != 1 or len(sdists) != 1:
         fail("expected exactly one wheel and one .tar.gz source distribution")
+    if {path.name for path in artifacts} != canonical_artifact_names(version):
+        fail("release artifacts do not use the exact canonical filenames")
 
     described = []
     for path in sorted(artifacts, key=lambda item: item.name):
@@ -134,16 +190,24 @@ def describe_artifacts(paths, version: str):
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
         )
+    if source_root is not None:
+        verify_source_equivalence(artifacts, version, source_root)
     return described
 
 
 def write_candidate_files(
-    paths, version: str, classification: str, ref: str, commit: str, output: Path
+    paths,
+    version: str,
+    classification: str,
+    ref: str,
+    commit: str,
+    output: Path,
+    source_root: Path,
 ):
     validate_candidate_identity(version, classification, ref)
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         fail("commit must be a full lowercase Git object ID")
-    artifacts = describe_artifacts(paths, version)
+    artifacts = describe_artifacts(paths, version, source_root)
     output.mkdir(parents=True, exist_ok=True)
     checksums = "".join(
         "{}  {}\n".format(artifact["sha256"], artifact["filename"])
@@ -164,7 +228,12 @@ def write_candidate_files(
 
 
 def verify_candidate_bundle(
-    directory: Path, version: str, classification: str, ref: str, commit: str
+    directory: Path,
+    version: str,
+    classification: str,
+    ref: str,
+    commit: str,
+    source_root: Path,
 ) -> dict:
     """Verify a downloaded candidate before it is eligible for publication."""
     validate_candidate_identity(version, classification, ref)
@@ -231,7 +300,7 @@ def verify_candidate_bundle(
         fail("release-candidate bundle contains unexpected or missing files")
 
     artifact_paths = [directory / name for name in artifact_names]
-    described_artifacts = describe_artifacts(artifact_paths, version)
+    described_artifacts = describe_artifacts(artifact_paths, version, source_root)
     if recorded_artifacts != described_artifacts:
         fail("release-candidate artifact digests do not match the manifest")
 
@@ -264,6 +333,7 @@ def parse_arguments(arguments=None):
     manifest.add_argument("--ref", required=True)
     manifest.add_argument("--commit", required=True)
     manifest.add_argument("--output", type=Path, required=True)
+    manifest.add_argument("--source-root", type=Path, required=True)
     manifest.add_argument("artifacts", nargs="+")
 
     bundle = subparsers.add_parser("bundle")
@@ -272,6 +342,7 @@ def parse_arguments(arguments=None):
     bundle.add_argument("--classification", required=True)
     bundle.add_argument("--ref", required=True)
     bundle.add_argument("--commit", required=True)
+    bundle.add_argument("--source-root", type=Path, required=True)
     return parser.parse_args(arguments)
 
 
@@ -291,6 +362,7 @@ def main(arguments=None):
             options.ref,
             options.commit,
             options.output,
+            options.source_root,
         )
         print("Wrote verified release-candidate manifest and SHA-256 checksums.")
         return
@@ -300,6 +372,7 @@ def main(arguments=None):
         options.classification,
         options.ref,
         options.commit,
+        options.source_root,
     )
     print(
         "Verified {version} release-candidate bundle from {commit}.".format(**verified)

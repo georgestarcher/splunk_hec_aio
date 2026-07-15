@@ -37,6 +37,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   successful, unexpired verification bundle for the current signed tag and
   never creates or moves tags, overwrites an existing release, or publishes
   package-index artifacts.
+- Pre-publication source-equivalence, canonical-filename, dispatched-revision,
+  and post-approval branch-tip checks for the immutable release path.
 - Release documentation for the GitHub-Releases-only final v2 policy, protected
   live verification, publication prerequisites, and no-overwrite recovery.
 

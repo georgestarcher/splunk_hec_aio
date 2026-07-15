@@ -46,7 +46,9 @@ The bundle contains exactly one wheel, one source distribution,
 commit, branch ref, version, compatibility classification, filenames, and
 SHA-256 digests. The workflow checks both distributions with Twine and the
 repository allowlist, installs both exact artifacts outside the checkout, runs
-the public API snapshot, and verifies the checksums after staging the bundle.
+the public API snapshot, requires canonical distribution filenames, compares
+the packaged runtime files byte-for-byte with the signed checkout, and verifies
+the checksums after staging the bundle.
 
 The workflow has read-only repository permission, uses no environment or
 secret, and has no tag or publication trigger. Its candidate artifact expires
@@ -72,6 +74,7 @@ python .github/scripts/verify_release_candidate.py manifest \
   --ref refs/heads/main \
   --commit "$(git rev-parse HEAD)" \
   --output release-candidate \
+  --source-root . \
   dist/*
 ```
 
@@ -113,32 +116,36 @@ In GitHub Actions, run **Publish verified GitHub release** from `main` with:
 
 The workflow first proves, under read-only permissions, that:
 
-- the signed annotated tag points to the current `main` commit;
+- the dispatched workflow revision and signed annotated tag both point to the
+  current `main` commit;
 - GitHub verified the tag signature;
 - the referenced Release verification run completed successfully on that same
   commit from `main`;
 - the run retains exactly one expected, unexpired candidate bundle;
-- its version, compatibility class, commit, manifest, artifact metadata, and
-  SHA-256 digests all agree; and
+- its version, compatibility class, commit, canonical filenames, manifest,
+  artifact metadata, packaged runtime bytes, signed source, and SHA-256 digests
+  all agree; and
 - neither a release for the tag nor an unexpected bundle file exists.
 
 Only the final job has `contents: write`, and it pauses at the protected
 `GITHUB_RELEASE` environment. Review the tag, commit, verification run, and
 candidate evidence before approving the deployment. After approval, the job
-rechecks the tag and bundle, creates the release with `--verify-tag` and
-`--fail-on-no-commits`, attaches exactly the wheel, source distribution,
-`SHA256SUMS`, and `release-candidate.json`, prepends the compatibility evidence
-to generated notes, and verifies the published state, asset names, immutable
-release attestation, and each local asset against that attestation. Repository
-release immutability must remain enabled so the published tag and assets cannot
-be moved, replaced, or deleted and GitHub generates the release provenance.
+rechecks the tag, current `main` tip, and bundle, creates the release with
+`--verify-tag` and `--fail-on-no-commits`, attaches exactly the wheel, source
+distribution, `SHA256SUMS`, and `release-candidate.json`, prepends the
+compatibility evidence to generated notes, and verifies the published state,
+asset names, immutable release attestation, and each local asset against that
+attestation. Repository release immutability must remain enabled so the
+published tag and assets cannot be moved, replaced, or deleted and GitHub
+generates the release provenance.
 
 After publication, maintainers must also:
 
 - download all four v2.1.2 assets and independently recheck `SHA256SUMS`;
 - run `gh release verify v2.1.2` and `gh release verify-asset v2.1.2 FILE`
   for each downloaded asset;
-- confirm both v2.1.1 and v2.1.2 releases and assets remain downloadable;
+- confirm the historical v2.1.1 release and source downloads remain available,
+  and all four v2.1.2 assets are downloadable;
 - verify the release is neither a draft nor a pre-release and is marked latest;
   and
 - record the release and workflow URLs on issue #30 before closing the release

@@ -155,6 +155,7 @@ jobs:
           --ref "$GITHUB_REF"
           --commit "$GITHUB_SHA"
           --output release-candidate
+          --source-root .
           dist/*
 
       - name: Stage the verified candidate bundle
