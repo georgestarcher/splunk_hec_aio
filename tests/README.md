@@ -36,3 +36,15 @@ declaration of the minimum or complete supported Python range.
 `test_live_integration_support.py` tests the live-workflow helper, query
 template, and security boundaries entirely offline. The real HEC send and
 querysplunk search run only from the manually approved GitHub Actions workflow.
+
+## Packaging verification
+
+`packaging/verify_artifacts.py` checks the built wheel and source distribution
+metadata and contents. `packaging/verify_installed_distribution.py` is run by
+GitHub Actions only after each artifact is installed into a clean environment
+and the working directory has been moved outside the source checkout. This
+prevents an in-tree import from hiding a broken installation.
+
+The legacy test module was moved to `legacy/` so it is not installed as part of
+the runtime package. It remains excluded from default test discovery because it
+contains historical network-dependent cases.

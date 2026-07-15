@@ -14,6 +14,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Secret-safe bug-report and compatibility-aware feature-request forms.
 - A pull-request compatibility checklist and contributor guide.
 - An examples landing page that preserves the existing root example path.
+- Standards-based, declarative packaging configuration with clean wheel and
+  source-distribution verification.
+- Installed-artifact checks for the documented nested import and v2.1.1 public
+  API on Python 3.9 and 3.13.
 
 ### Changed
 
@@ -22,6 +26,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Updated the MIT copyright notice to cover 2023-2026.
 - Linked compatibility, contribution, license, changelog, and example guidance
   from the README.
+- Made the runtime module version the authoritative distribution version while
+  preserving version `2.1.1`, the distribution name, dependency declarations,
+  `python_requires`, package location, and documented nested import.
+- Moved the historical network-dependent test module out of the installed
+  package and into `tests/legacy/`.
 
 ### Removed
 

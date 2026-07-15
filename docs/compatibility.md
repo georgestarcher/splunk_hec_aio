@@ -75,3 +75,11 @@ python -m unittest discover -s tests -v
 ```
 
 The suite performs no network requests and needs no Splunk host or token.
+
+The packaging workflow separately builds the wheel and source distribution,
+checks their metadata and file allowlists, installs each artifact into a clean
+environment, and runs the nested-import and public-API checks from outside the
+checkout. Python 3.9 is the established bootstrap target and Python 3.13 is an
+additional evidenced packaging target. These checks do not infer that versions
+between the declared `python_requires` bound and the tested targets are fully
+supported; the complete supported range remains tracked separately.
