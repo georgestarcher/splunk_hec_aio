@@ -15,6 +15,7 @@ env/
 # Builds and package artifacts
 build/
 dist/
+release-candidate/
 *.egg-info/
 .eggs/
 pip-wheel-metadata/

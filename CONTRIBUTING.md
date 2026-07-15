@@ -117,6 +117,21 @@ outside the checkout, and checks the documented nested import and v2.1.1 API
 snapshot. Python 3.9 and 3.13 are evidence-backed CI targets; they do not yet
 establish the project's minimum or complete supported range.
 
+## Verify a release candidate
+
+Maintainers can run the **Release verification** workflow manually from
+`main`. It reuses the complete Compatibility, Quality, and Packaging workflows,
+then builds and verifies the exact candidate artifacts under read-only
+permissions. The temporary bundle includes the wheel, source distribution,
+SHA-256 checksums, and a manifest tying them to a full commit and an allowed v2
+compatibility classification.
+
+The workflow is a non-publishing dry run. It has no tag trigger, secret,
+environment, GitHub Release write permission, or PyPI path. Follow
+[`docs/releasing.md`](docs/releasing.md) for inputs, evidence review, the
+separate live-integration gate, final publication prerequisites, and recovery
+rules.
+
 ## Run the protected live integration test
 
 Maintainers can run the **Live Splunk integration** workflow manually after a

@@ -18,7 +18,31 @@ EXPECTED_PROJECT_URLS = {
     "Issues": "https://github.com/georgestarcher/splunk_hec_aio/issues",
     "Source": "https://github.com/georgestarcher/splunk_hec_aio",
 }
-FORBIDDEN_PARTS = {".DS_Store", "__pycache__"}
+FORBIDDEN_PARTS = {
+    ".git",
+    ".hypothesis",
+    ".mypy_cache",
+    ".nox",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "env",
+    "venv",
+}
+FORBIDDEN_NAMES = {
+    ".coverage",
+    ".ds_store",
+    ".env",
+    ".netrc",
+    "coverage.xml",
+    "credentials",
+    "credentials.json",
+    "junit.xml",
+    "splunkresults.json",
+}
+FORBIDDEN_SUFFIXES = (".key", ".p12", ".pem", ".pfx", ".pyc", ".pyo")
 
 
 def fail(message: str) -> NoReturn:
@@ -82,8 +106,17 @@ def verify_metadata(metadata, artifact):
 def verify_common_contents(names, artifact):
     for name in names:
         path = PurePosixPath(name)
-        if FORBIDDEN_PARTS.intersection(path.parts) or name.endswith((".pyc", ".pyo")):
-            fail("{}: generated file included: {}".format(artifact, name))
+        lower_parts = {part.lower() for part in path.parts}
+        if (
+            FORBIDDEN_PARTS.intersection(lower_parts)
+            or path.name.lower() in FORBIDDEN_NAMES
+            or path.name.lower().endswith(FORBIDDEN_SUFFIXES)
+        ):
+            fail(
+                "{}: forbidden local or generated file included: {}".format(
+                    artifact, name
+                )
+            )
 
 
 def verify_wheel(path):
