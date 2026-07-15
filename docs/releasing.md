@@ -64,7 +64,21 @@ after seven days and must not be presented as an official release asset.
 
 ## Reproduce the historical v2.1.2 artifact checks locally
 
-From a clean checkout with the development extra installed:
+These commands apply only to the exact source at the signed `v2.1.2` tag, not
+to the v3 development branch. Create a disposable detached worktree and install
+the tagged development environment before running them:
+
+```shell
+git fetch --tags origin
+git tag -v v2.1.2
+git worktree add --detach ../splunk-hec-aio-v2.1.2 v2.1.2
+cd ../splunk-hec-aio-v2.1.2
+python3.9 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+From that v2.1.2 worktree:
 
 ```shell
 rm -rf build dist *.egg-info release-candidate
@@ -86,8 +100,10 @@ python .github/scripts/verify_release_candidate.py manifest \
   dist/*
 ```
 
-These commands target the v2.1.2 candidate. Local output is only diagnostic
-evidence; the GitHub-hosted dry run remains the release gate.
+These commands target the historical v2.1.2 source. Local output is only
+diagnostic evidence; the completed GitHub-hosted run remains the release
+record. After validation, leave the detached worktree and remove it with
+`git worktree remove <path>` from the original checkout.
 
 ## Historical v2.1.2 publication procedure
 
