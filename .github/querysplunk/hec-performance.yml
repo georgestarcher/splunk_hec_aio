@@ -1,0 +1,72 @@
+schema_version: "1"
+
+app: search
+output_file: splunkresults.json
+mode: job
+search: |
+  search index=__SPLUNK_HEC_INDEX__
+    sourcetype=__SPLUNK_HEC_SOURCETYPE__
+    ci_benchmark_id="__SPLUNK_HEC_BENCHMARK_ID__"
+  | stats count as event_count
+      dc(benchmark_sequence) as distinct_sequence_count
+      min(benchmark_sequence) as minimum_sequence
+      max(benchmark_sequence) as maximum_sequence
+      values(benchmark_expected_count) as observed_expected_values
+  | eval observed_expected_count=if(
+      mvcount(observed_expected_values)=1,
+      tonumber(mvindex(observed_expected_values, 0)),
+      -1)
+  | eval minimum_sequence=coalesce(minimum_sequence, -1),
+      maximum_sequence=coalesce(maximum_sequence, -1)
+  | eval expected_count=__SPLUNK_HEC_EXPECTED_COUNT__
+  | eval verified=if(
+      event_count=expected_count
+      AND distinct_sequence_count=expected_count
+      AND minimum_sequence=0
+      AND maximum_sequence=expected_count-1
+      AND observed_expected_count=expected_count,
+      1,
+      0)
+  | fields verified event_count distinct_sequence_count minimum_sequence
+      maximum_sequence observed_expected_count
+
+dispatch:
+  earliest_time: "-15m"
+  latest_time: "now"
+  max_count: 20000
+  status_buckets: 0
+  required_fields:
+    - ci_benchmark_id
+    - benchmark_sequence
+    - benchmark_expected_count
+
+results:
+  endpoint: auto
+  output_mode: json
+  count: 1
+  offset: 0
+
+result_handling:
+  classification: internal
+  contains_credentials: false
+  agent_display: bounded_summary
+  recommended_file_mode: "0600"
+  retention: temporary
+
+result_contract:
+  required_fields:
+    - verified
+    - event_count
+    - distinct_sequence_count
+    - minimum_sequence
+    - maximum_sequence
+    - observed_expected_count
+  allow_empty: false
+  maximum_rows: 1
+
+safety:
+  allow_old_earliest: false
+  allow_index_wildcard: false
+
+diagnostics:
+  search_log: summary

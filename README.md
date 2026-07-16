@@ -182,6 +182,7 @@ Additional project documentation:
 - [Examples](examples/README.md)
 - [License](LICENSE)
 - [Migrate from v2.1.2 to v3](docs/migrating-to-v3.md)
+- [Protected HEC performance benchmark](docs/performance-benchmark.md)
 - [Release verification](docs/releasing.md)
 - [Security policy](SECURITY.md)
 - [User Wiki](https://github.com/georgestarcher/splunk_hec_aio/wiki)

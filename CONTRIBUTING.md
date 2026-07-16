@@ -170,6 +170,13 @@ events. Failure artifacts contain only a bounded status, attempt number, exit
 code, and match count—not tokens, endpoints, event bodies, SPL, or raw search
 results.
 
+For larger controlled validation, follow the separate
+[`Protected HEC performance benchmark`](docs/performance-benchmark.md). Run its
+allowlisted stages in order, stop after any failed stage, and treat every result
+as an environment-specific observation rather than a Splunk Cloud capacity
+limit. That workflow does not require the HEC health endpoint and proves exact
+row and sequence counts through a bounded querysplunk aggregate.
+
 ## Preserve the v2 baseline during v3 development
 
 Read [`docs/compatibility.md`](docs/compatibility.md) before changing public or

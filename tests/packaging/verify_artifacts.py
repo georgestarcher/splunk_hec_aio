@@ -208,6 +208,7 @@ def verify_sdist(path, expected_version):
         "{}/docs/compatibility.md".format(root),
         "{}/docs/consumer-agent-guide.md".format(root),
         "{}/docs/migrating-to-v3.md".format(root),
+        "{}/docs/performance-benchmark.md".format(root),
         "{}/docs/releasing.md".format(root),
         "{}/examples/README.md".format(root),
         "{}/examples/async_strict_delivery.py".format(root),
