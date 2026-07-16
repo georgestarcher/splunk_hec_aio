@@ -42,6 +42,7 @@ ordinary Splunk Cloud Platform HEC clients. The example requires an additional
 explicit opt-in so it cannot be run accidentally:
 
 ```shell
+export SPLUNK_HEC_PORT="8088"
 export SPLUNK_HEC_ENABLE_ACK_EXAMPLE="yes"
 export SPLUNK_HEC_ACK_TIMEOUT="300"
 export SPLUNK_HEC_ACK_POLL_INTERVAL="10"

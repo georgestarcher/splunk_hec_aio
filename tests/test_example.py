@@ -97,6 +97,8 @@ class TestMaintainedExample(unittest.TestCase):
 
         self.assertIn("SPLUNK_HEC_TOKEN", readme)
         self.assertIn("SPLUNK_HEC_ENABLE_ACK_EXAMPLE", readme)
+        ack_section = readme.split("## Indexer acknowledgment safety gate", 1)[1]
+        self.assertIn('SPLUNK_HEC_PORT="8088"', ack_section)
         self.assertIn("not installed by the wheel", readme)
 
     def test_compatible_example_uses_environment_and_flushes(self):
