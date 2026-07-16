@@ -62,7 +62,7 @@ class _RetryClient:
         self.closed = True
 
 
-def result(batch_index, event_count, accepted=True):
+def result(batch_index, event_count, accepted=True, retryable=False):
     return HecDeliveryResult(
         batch_index=batch_index,
         event_count=event_count,
@@ -72,7 +72,7 @@ def result(batch_index, event_count, accepted=True):
         hec_text="Success" if accepted else "Invalid data format",
         invalid_event_number=None if accepted else 0,
         accepted=accepted,
-        retryable=False,
+        retryable=retryable,
     )
 
 
@@ -332,6 +332,45 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertNotIn("secret", str(error))
         self.assertTrue(self.sender.post_queue.is_empty)
 
+    def test_retryable_partial_failures_requeue_only_failed_batches_in_order(self):
+        batches = [
+            [{"event": "first-retry"}],
+            [{"event": "second-success"}],
+            [{"event": "third-retry"}],
+        ]
+        for batch in batches:
+            self.sender.post_queue.enqueue(batch)
+
+        async def deliver(url, batch, batch_index):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            if batch_index == 0:
+                raise HecTransportError(batch_index, len(batch), "timeout", True)
+            if batch_index == 2:
+                raise HecResponseError(
+                    result(
+                        batch_index,
+                        len(batch),
+                        accepted=False,
+                        retryable=True,
+                    )
+                )
+            return result(batch_index, len(batch))
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=deliver),
+        ):
+            with self.assertRaises(HecBatchDeliveryError) as raised:
+                asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual(
+            [item.batch_index for item in raised.exception.results],
+            [1],
+        )
+        self.assertEqual(len(raised.exception.failures), 2)
+        self.assertEqual(self.sender.post_queue.elements, [batches[0], batches[2]])
+
     def test_strict_cancellation_remains_cancellation(self):
         self.sender.post_queue.enqueue([{"event": "cancelled"}])
 
@@ -363,8 +402,14 @@ class TestStrictDelivery(unittest.TestCase):
 
         self.assertEqual(raised.exception.failures, aggregate.failures)
         self.assertFalse(self.sender._strict_delivery)
-        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.post_queue.elements, [[first]])
         self.assertEqual(self.sender.payload_queue.elements, [second])
+
+        deliveries = self.sender.flush_strict()
+
+        self.assertEqual([item.event_count for item in deliveries], [1, 1])
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertTrue(self.sender.payload_queue.is_empty)
 
     def test_strict_auto_flush_retains_triggering_payload_once_after_success(self):
         self.sender.set_pop_empty_fields(False)
