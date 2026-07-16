@@ -17,7 +17,6 @@ search: |
 dispatch:
   earliest_time: "-10m"
   latest_time: "now"
-  max_count: 1
   status_buckets: 0
   required_fields:
     - ci_test_id

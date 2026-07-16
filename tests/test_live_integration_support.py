@@ -218,6 +218,7 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
 
         self.assertIn('earliest_time: "-10m"', query)
         self.assertIn('latest_time: "now"', query)
+        self.assertNotIn("  max_count:", query)
         self.assertIn(
             "stats count as event_count dc(batch_position) as position_count",
             query,
