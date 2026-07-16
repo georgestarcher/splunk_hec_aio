@@ -341,6 +341,57 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resumed[0].ack_id, 40)
         self.assertEqual(self.sender._ack_pending, {})
 
+    async def test_poll_cancellation_preserves_known_delivery_failure(self):
+        def event_response(request, body):
+            del request
+            event_name = json.loads(body)["event"]
+            if event_name == "accepted":
+                return {"text": "Success", "code": 0, "ackId": 42}
+            return {"text": "Invalid event", "code": 5}
+
+        self.server.event_responder = event_response
+        self.sender.post_queue.enqueue([{"event": "accepted"}])
+        self.sender.post_queue.enqueue([{"event": "rejected"}])
+
+        with patch.object(
+            self.sender,
+            "_http_ack_status_task",
+            new=AsyncMock(side_effect=asyncio.CancelledError),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await self.sender.flush_ack_async(
+                    timeout=1,
+                    poll_interval=0.01,
+                )
+
+        self.assertEqual(set(self.sender._ack_pending), {42})
+        self.assertEqual(len(self.sender._ack_deferred_failures), 1)
+        self.assertEqual(
+            self.sender._ack_deferred_failures[0].category,
+            "delivery rejected",
+        )
+        self.assertFalse(self.sender._ack_deferred_failures[0].retryable)
+
+        with patch.object(
+            self.sender,
+            "_http_ack_status_task",
+            new=AsyncMock(return_value={42: True}),
+        ):
+            with self.assertRaises(HecAcknowledgmentError) as resumed:
+                await self.sender.flush_ack_async(
+                    timeout=1,
+                    poll_interval=0.01,
+                )
+
+        self.assertEqual([result.ack_id for result in resumed.exception.results], [42])
+        self.assertEqual(len(resumed.exception.failures), 1)
+        self.assertEqual(
+            resumed.exception.failures[0].category,
+            "delivery rejected",
+        )
+        self.assertEqual(self.sender._ack_pending, {})
+        self.assertEqual(self.sender._ack_deferred_failures, [])
+
     async def test_send_cancellation_preserves_accepted_id_and_unsent_batch(self):
         self.sender.set_concurrent_post_limit(2)
         self.sender.post_queue.enqueue([{"event": "accepted"}])

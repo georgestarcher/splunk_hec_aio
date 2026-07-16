@@ -1129,6 +1129,10 @@ class SplunkHecAio:
                 timeout,
                 poll_interval,
             )
+        except asyncio.CancelledError:
+            self._ack_deferred_failures.clear()
+            self._ack_deferred_failures.extend(delivery_failures)
+            raise
         except HecAcknowledgmentError as error:
             self._ack_deferred_failures.clear()
             raise HecAcknowledgmentError(
