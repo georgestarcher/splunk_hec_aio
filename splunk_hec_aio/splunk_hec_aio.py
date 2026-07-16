@@ -22,6 +22,12 @@ def _is_empty_json_value(value):
     )
 
 
+def _new_hec_channel():
+    """Return a random UUID suitable for a HEC request channel."""
+
+    return str(uuid.uuid4())
+
+
 # Class for Queue objects.
 class _SplunkQueue:
     """
@@ -453,7 +459,7 @@ class SplunkHecAio:
         else:
             headers["Content-Type"] = "text/plain"
         headers["User-Agent"] = "Splunk-hec-sender/1.0 (Python)"
-        headers["X-Splunk-Request-Channel"] = str(uuid.uuid1())
+        headers["X-Splunk-Request-Channel"] = _new_hec_channel()
         return headers
 
     @property
@@ -462,7 +468,7 @@ class SplunkHecAio:
 
         params = dict()
         if not self._payload_mode_json:
-            params["channel"] = str(uuid.uuid1())
+            params["channel"] = _new_hec_channel()
         json_format = self.get_payload_json_format()
         if self._index and not json_format:
             params["index"] = self._index

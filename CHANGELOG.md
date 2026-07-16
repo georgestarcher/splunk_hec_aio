@@ -31,6 +31,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Replaced time- and node-derived HEC request channels with random UUIDv4
+  identifiers while preserving the existing header and raw query-parameter
+  wire shape.
 - Preserved top-level numeric zero and `False` values under the default
   empty-field policy, and stopped configured JSON metadata from mutating
   caller-owned payload dictionaries.

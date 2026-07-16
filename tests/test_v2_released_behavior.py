@@ -103,8 +103,9 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.assertEqual(self.sender.get_post_max_byte_size(), 800000)
 
     def test_json_endpoint_headers_and_retry_defaults(self):
-        channel = uuid.UUID("00000000-0000-0000-0000-000000000001")
-        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel):
+        # Issue #17 intentionally replaces v2's time/node-derived UUIDv1 channel.
+        channel = uuid.UUID("00000000-0000-4000-8000-000000000001")
+        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid4", return_value=channel):
             headers = self.sender.splunk_headers
 
         self.assertEqual(
@@ -129,7 +130,7 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         )
 
     def test_raw_mode_endpoint_and_parameters(self):
-        channel = uuid.UUID("00000000-0000-0000-0000-000000000002")
+        channel = uuid.UUID("00000000-0000-4000-8000-000000000002")
         self.sender.set_payload_json_format(False)
         self.sender.set_https(False)
         self.sender.set_index("main")
@@ -137,7 +138,7 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.sender.set_source("compatibility-test")
         self.sender.set_host("source-host")
 
-        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid1", return_value=channel):
+        with patch("splunk_hec_aio.splunk_hec_aio.uuid.uuid4", return_value=channel):
             params = self.sender.splunk_params
 
         self.assertEqual(
