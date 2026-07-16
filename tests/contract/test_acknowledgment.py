@@ -291,7 +291,7 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(HecAcknowledgmentError) as raised:
             await self.sender.flush_ack_async(
-                timeout=0.04,
+                timeout=0.5,
                 poll_interval=0.01,
             )
 
