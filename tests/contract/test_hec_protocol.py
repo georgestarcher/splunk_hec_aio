@@ -345,21 +345,59 @@ class TestHecProtocol(unittest.TestCase):
         self.assertEqual(self.sender.post_queue.elements, [[events[0]], [events[1]]])
         self.assertEqual(self.sender.payload_queue.elements, [events[2]])
 
-    def test_raw_batch_boundaries_record_released_utf8_accounting_gap(self):
-        # Issue #17 owns correcting this character/JSON-based accounting.
-        self.sender.set_payload_json_format(False)
+    def test_json_batch_boundaries_use_concatenated_wire_bytes(self):
+        self.sender.set_pop_empty_fields(False)
         self.sender.set_post_max_byte_size(4000)
-        payloads = ["é" * 900, "é" * 900]
-        self.assertLessEqual(
-            sum(len(payload.encode("utf-8")) for payload in payloads),
+        events = [
+            {"event": "a" * 1987},
+            {"event": "b" * 1987},
+            {"event": "c" * 1987},
+        ]
+        self.assertEqual(
+            sum(len(json.dumps(event).encode("utf-8")) for event in events[:2]),
             self.sender.get_post_max_byte_size(),
         )
 
-        for payload in payloads:
-            self.sender.post_data(payload)
+        self.sender.post_data(events[0])
+        self.sender.post_data(events[1])
 
-        self.assertEqual(self.sender.post_queue.elements, [[payloads[0]]])
-        self.assertEqual(self.sender.payload_queue.elements, [payloads[1]])
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.payload_queue.elements, events[:2])
+
+        self.sender.post_data(events[2])
+
+        self.assertEqual(self.sender.post_queue.elements, [events[:2]])
+        self.assertEqual(self.sender.payload_queue.elements, [events[2]])
+
+    def test_raw_batch_boundaries_use_uncompressed_utf8_bytes(self):
+        self.sender.set_payload_json_format(False)
+        self.sender.set_post_max_byte_size(4000)
+        payloads = ["é" * 900, "é" * 900, "é" * 900]
+        self.assertLessEqual(
+            sum(len(payload.encode("utf-8")) for payload in payloads[:2]),
+            self.sender.get_post_max_byte_size(),
+        )
+
+        self.sender.post_data(payloads[0])
+        self.sender.post_data(payloads[1])
+
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.payload_queue.elements, payloads[:2])
+
+        self.sender.post_data(payloads[2])
+
+        self.assertEqual(self.sender.post_queue.elements, [payloads[:2]])
+        self.assertEqual(self.sender.payload_queue.elements, [payloads[2]])
+
+    def test_individually_oversized_payload_does_not_create_an_empty_batch(self):
+        self.sender.set_payload_json_format(False)
+        self.sender.set_post_max_byte_size(4000)
+        payload = "é" * 2500
+
+        self.sender.post_data(payload)
+
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.payload_queue.elements, [payload])
 
     def test_concurrent_batch_dispatch_does_not_lose_or_duplicate_batches(self):
         batches = [

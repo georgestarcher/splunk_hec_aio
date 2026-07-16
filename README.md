@@ -129,10 +129,14 @@ intentionally rejects the current `3.0.0.dev0` development version.
 
 Test with representative payloads before tuning. The default maximum batch size
 is 512,000 bytes and the accepted range is 4,000 through 800,000 bytes. The
-default concurrent-post limit is 10 and the maximum is 20. Smaller batches can
-spread work across concurrent requests, but the best values depend on event
-size, network latency, and the Splunk deployment. Enable DEBUG logging during a
-controlled test when you need to inspect how events are divided among posts.
+limit applies to the uncompressed UTF-8 request body: concatenated serialized
+event envelopes in JSON mode or concatenated strings in raw mode. Gzip is
+applied only after the batch is formed. A single event larger than the limit is
+sent alone because events are never split. The default concurrent-post limit is
+10 and the maximum is 20. Smaller batches can spread work across concurrent
+requests, but the best values depend on event size, network latency, and the
+Splunk deployment. Enable DEBUG logging during a controlled test when you need
+to inspect how events are divided among posts.
 
 ### JSON and raw modes
 
