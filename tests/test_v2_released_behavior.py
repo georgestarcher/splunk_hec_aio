@@ -41,12 +41,25 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.assertIsNone(self.sender.get_source())
         self.assertIsNone(self.sender.get_host())
 
-    def test_released_constructor_validation_behavior_is_recorded(self):
-        # This describes v2.1.1; issue #8 proposes an explicit correction.
-        sender = SplunkHecAio(None, "test-token")
-        self.assertIsNone(sender.host)
-        with self.assertRaisesRegex(ValueError, "HEC Token is missing"):
-            SplunkHecAio("splunk.example", None)
+    def test_v3_constructor_rejects_invalid_required_values(self):
+        # V2.1.2 accidentally checked a method reference instead of the host;
+        # issue #8 intentionally corrects both required inputs for v3.
+        cases = (
+            (None, "test-token", "HOST must be a non-empty string."),
+            ("", "test-token", "HOST must be a non-empty string."),
+            (" \t", "test-token", "HOST must be a non-empty string."),
+            (8088, "test-token", "HOST must be a non-empty string."),
+            ("splunk.example", None, "HEC Token must be a non-empty string."),
+            ("splunk.example", "", "HEC Token must be a non-empty string."),
+            ("splunk.example", " \t", "HEC Token must be a non-empty string."),
+            ("splunk.example", 1234, "HEC Token must be a non-empty string."),
+        )
+
+        for host, token, message in cases:
+            with self.subTest(host=host, token=token):
+                with self.assertRaises(ValueError) as raised:
+                    SplunkHecAio(host, token)
+                self.assertEqual(str(raised.exception), message)
 
     def test_invalid_setter_values_return_none_and_preserve_values(self):
         cases = (
