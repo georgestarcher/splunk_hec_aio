@@ -15,9 +15,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - A portable consumer-agent integration guide and separate repository
   maintainer contract covering release, mode, secret, side-effect, and
   search-backed adoption decisions, with offline documentation drift tests.
+- A manual protected performance benchmark that sends an explicitly bounded
+  synthetic strict-async workload and uses an aggregate querysplunk search to
+  prove exact searchable row and sequence coverage without changing runtime
+  behavior.
 
 ### Changed
 
+- Pinned the protected live-search workflows to checksum-verified querysplunk
+  v2.3.0 and added an explicit bounded result contract to the HEC smoke query.
 - Replaced the historical high-volume example with an environment-configured
   compatible example that sends one event by default and always flushes.
 - Updated the README and project Wiki for the stable v3 release and routed

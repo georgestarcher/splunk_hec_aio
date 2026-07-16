@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  QUERYSPLUNK_VERSION: v2.2.0
-  QUERYSPLUNK_ARCHIVE: splunkquery-v2.2.0-linux-amd64.tar.gz
-  QUERYSPLUNK_SHA256: aac64cf0400a16ac76d2f2e3349d5e093872ba87b20a30bef87b34847532607d
+  QUERYSPLUNK_VERSION: v2.3.0
+  QUERYSPLUNK_ARCHIVE: splunkquery-v2.3.0-linux-amd64.tar.gz
+  QUERYSPLUNK_SHA256: 6703ce96ed127e82bddc7ad10f7d17a33b80a7e0df50af8fd6aa916d3b5a6e67
 
 jobs:
   hec-and-search:
@@ -50,7 +50,7 @@ jobs:
           curl --fail --location --silent --show-error "$release_url" --output "$archive"
           printf '%s  %s\n' "$QUERYSPLUNK_SHA256" "$archive" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP"
-          binary="$RUNNER_TEMP/splunkquery-v2.2.0-linux-amd64/splunkquery"
+          binary="$RUNNER_TEMP/${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery"
           test -x "$binary"
           echo "QUERYSPLUNK_BIN=$binary" >> "$GITHUB_ENV"
           "$binary" -version

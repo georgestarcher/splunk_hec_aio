@@ -1,3 +1,5 @@
+schema_version: "1"
+
 app: search
 output_file: splunkresults.json
 mode: job
@@ -28,6 +30,19 @@ results:
   output_mode: json
   count: 1
   offset: 0
+
+result_handling:
+  classification: internal
+  contains_credentials: false
+  agent_display: bounded_summary
+  recommended_file_mode: "0600"
+  retention: temporary
+
+result_contract:
+  required_fields:
+    - matched
+  allow_empty: false
+  maximum_rows: 1
 
 safety:
   allow_old_earliest: false

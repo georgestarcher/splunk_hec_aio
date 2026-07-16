@@ -1,0 +1,262 @@
+name: Protected HEC performance benchmark
+run-name: HEC benchmark ${{ inputs.event_count }} events / ${{ inputs.max_batch_bytes }} bytes / ${{ inputs.concurrency }} concurrent
+
+on:
+  workflow_dispatch:
+    inputs:
+      event_count:
+        description: Synthetic events in this explicitly selected stage
+        required: true
+        default: "100"
+        type: choice
+        options:
+          - "100"
+          - "1000"
+          - "5000"
+          - "10000"
+      max_batch_bytes:
+        description: Maximum uncompressed bytes per HEC request
+        required: true
+        default: "512000"
+        type: choice
+        options:
+          - "64000"
+          - "256000"
+          - "512000"
+          - "800000"
+      concurrency:
+        description: Maximum concurrent HEC requests
+        required: true
+        default: "10"
+        type: choice
+        options:
+          - "1"
+          - "5"
+          - "10"
+          - "20"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-splunk-integration
+  cancel-in-progress: false
+
+env:
+  QUERYSPLUNK_VERSION: v2.3.0
+  QUERYSPLUNK_ARCHIVE: splunkquery-v2.3.0-linux-amd64.tar.gz
+  QUERYSPLUNK_SHA256: 6703ce96ed127e82bddc7ad10f7d17a33b80a7e0df50af8fd6aa916d3b5a6e67
+
+jobs:
+  benchmark:
+    name: Protected benchmark / strict async and search
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: SPLUNK_INTEGRATION
+
+    steps:
+      - name: Initialize sanitized diagnostics
+        shell: bash
+        run: printf 'status=starting\n' > "$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.9 compatibility target
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.9"
+
+      - name: Install runtime requirements
+        run: python -m pip install -r requirements.txt
+
+      - name: Install checksum-verified querysplunk
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=installing_querysplunk\n' > "$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+          archive="$RUNNER_TEMP/$QUERYSPLUNK_ARCHIVE"
+          release_url="https://github.com/georgestarcher/querysplunk/releases/download/$QUERYSPLUNK_VERSION/$QUERYSPLUNK_ARCHIVE"
+          curl --fail --location --silent --show-error "$release_url" --output "$archive"
+          printf '%s  %s\n' "$QUERYSPLUNK_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          binary="$RUNNER_TEMP/${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery"
+          test -x "$binary"
+          echo "QUERYSPLUNK_BIN=$binary" >> "$GITHUB_ENV"
+          "$binary" -version
+
+      - name: Generate unique benchmark marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="benchmark-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(python -c 'import uuid; print(uuid.uuid4())')"
+          echo "SPLUNK_HEC_TEST_ID=$marker" >> "$GITHUB_ENV"
+
+      - name: Validate protected benchmark configuration
+        env:
+          SPLUNK_HEC_HOST: ${{ secrets.SPLUNK_HEC_HOST }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+          SPLUNK_HEC_PORT: ${{ vars.SPLUNK_HEC_PORT }}
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCE: ${{ vars.SPLUNK_HEC_SOURCE }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNK_HEC_BENCHMARK_EVENT_COUNT: ${{ inputs.event_count }}
+          SPLUNK_HEC_BENCHMARK_MAX_BATCH_BYTES: ${{ inputs.max_batch_bytes }}
+          SPLUNK_HEC_BENCHMARK_CONCURRENCY: ${{ inputs.concurrency }}
+          SPLUNKBASEURL: ${{ secrets.SPLUNKBASEURL }}
+          SPLUNKTOKEN: ${{ secrets.SPLUNKTOKEN }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+          SPLUNKTIMEOUT: ${{ vars.SPLUNKTIMEOUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=validating_configuration\n' > "$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+          python .github/scripts/hec_performance_benchmark.py preflight
+
+      - name: Render and validate exact-count search
+        env:
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNK_HEC_BENCHMARK_EVENT_COUNT: ${{ inputs.event_count }}
+          SPLUNK_HEC_BENCHMARK_MAX_BATCH_BYTES: ${{ inputs.max_batch_bytes }}
+          SPLUNK_HEC_BENCHMARK_CONCURRENCY: ${{ inputs.concurrency }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=rendering_query\n' > "$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+          rendered="$RUNNER_TEMP/hec-performance.yml"
+          python .github/scripts/hec_performance_benchmark.py render-query \
+            .github/querysplunk/hec-performance.yml "$rendered"
+          "$QUERYSPLUNK_BIN" -validate-config "$rendered" \
+            -app "$SPLUNKAPP" -o "$RUNNER_TEMP/splunkresults.json" > /dev/null
+          echo "RENDERED_QUERY_CONFIG=$rendered" >> "$GITHUB_ENV"
+
+      - name: Send bounded strict async benchmark
+        env:
+          SPLUNK_HEC_HOST: ${{ secrets.SPLUNK_HEC_HOST }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+          SPLUNK_HEC_PORT: ${{ vars.SPLUNK_HEC_PORT }}
+          SPLUNK_HEC_INDEX: ${{ vars.SPLUNK_HEC_INDEX }}
+          SPLUNK_HEC_SOURCE: ${{ vars.SPLUNK_HEC_SOURCE }}
+          SPLUNK_HEC_SOURCETYPE: ${{ vars.SPLUNK_HEC_SOURCETYPE }}
+          SPLUNK_HEC_BENCHMARK_EVENT_COUNT: ${{ inputs.event_count }}
+          SPLUNK_HEC_BENCHMARK_MAX_BATCH_BYTES: ${{ inputs.max_batch_bytes }}
+          SPLUNK_HEC_BENCHMARK_CONCURRENCY: ${{ inputs.concurrency }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'status=sending\nevent_count=%s\n' \
+            "$SPLUNK_HEC_BENCHMARK_EVENT_COUNT" > "$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+          python .github/scripts/hec_performance_benchmark.py run \
+            "$RUNNER_TEMP/hec-benchmark-sender.json"
+
+      - name: Confirm exact rows and sequence coverage are searchable
+        env:
+          SPLUNK_HEC_BENCHMARK_EVENT_COUNT: ${{ inputs.event_count }}
+          SPLUNK_HEC_BENCHMARK_MAX_BATCH_BYTES: ${{ inputs.max_batch_bytes }}
+          SPLUNK_HEC_BENCHMARK_CONCURRENCY: ${{ inputs.concurrency }}
+          SPLUNKBASEURL: ${{ secrets.SPLUNKBASEURL }}
+          SPLUNKTOKEN: ${{ secrets.SPLUNKTOKEN }}
+          SPLUNKAPP: ${{ vars.SPLUNKAPP }}
+          SPLUNKTLSVERIFY: ${{ vars.SPLUNKTLSVERIFY }}
+          SPLUNKTIMEOUT: ${{ vars.SPLUNKTIMEOUT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostics="$RUNNER_TEMP/hec-benchmark-diagnostics.txt"
+          printf 'status=searching\n' > "$diagnostics"
+          started=$SECONDS
+          deadline_seconds=180
+          attempt=0
+
+          while (( SECONDS - started < deadline_seconds )); do
+            (( attempt += 1 ))
+            elapsed=$((SECONDS - started))
+            remaining=$((deadline_seconds - elapsed))
+            result="$RUNNER_TEMP/hec-benchmark-results-$attempt.json"
+            events="$RUNNER_TEMP/hec-benchmark-querysplunk-$attempt.jsonl"
+
+            set +e
+            timeout --signal=TERM --kill-after=5s "${remaining}s" \
+              "$QUERYSPLUNK_BIN" -json-events -config "$RENDERED_QUERY_CONFIG" \
+              -app "$SPLUNKAPP" -o "$result" > /dev/null 2> "$events"
+            query_status=$?
+            set -e
+            if (( query_status != 0 )); then
+              printf 'status=query_failed\nattempt=%s\nexit_code=%s\n' \
+                "$attempt" "$query_status" > "$diagnostics"
+              echo "Protected benchmark search failed before aggregate verification." >&2
+              exit 1
+            fi
+
+            set +e
+            python .github/scripts/hec_performance_benchmark.py verify-results \
+              "$result" "$RUNNER_TEMP/hec-benchmark-search.json" > /dev/null
+            verify_status=$?
+            set -e
+            if (( verify_status == 0 )); then
+              elapsed=$((SECONDS - started))
+              echo "BENCHMARK_INDEXING_LAG_SECONDS=$elapsed" >> "$GITHUB_ENV"
+              printf 'status=success\nattempt=%s\n' "$attempt" > "$diagnostics"
+              echo "Exact benchmark row and sequence counts verified."
+              exit 0
+            fi
+            if (( verify_status != 2 )); then
+              printf 'status=invalid_results\nattempt=%s\n' "$attempt" > "$diagnostics"
+              echo "Protected benchmark returned invalid aggregate results." >&2
+              exit 1
+            fi
+
+            printf 'status=searching\nattempt=%s\n' "$attempt" > "$diagnostics"
+            elapsed=$((SECONDS - started))
+            remaining=$((deadline_seconds - elapsed))
+            if (( remaining <= 0 )); then
+              break
+            fi
+            sleep_seconds=10
+            if (( remaining < sleep_seconds )); then
+              sleep_seconds=$remaining
+            fi
+            sleep "$sleep_seconds"
+          done
+
+          printf 'status=exact_rows_not_verified\nattempts=%s\n' \
+            "$attempt" > "$diagnostics"
+          echo "Exact benchmark rows were not searchable within 180 seconds." >&2
+          exit 1
+
+      - name: Write sanitized benchmark summary
+        if: ${{ always() }}
+        env:
+          INDEXING_LAG_SECONDS: ${{ env.BENCHMARK_INDEXING_LAG_SECONDS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sender="$RUNNER_TEMP/hec-benchmark-sender.json"
+          search="$RUNNER_TEMP/hec-benchmark-search.json"
+          if [[ ! -f "$sender" || ! -f "$search" ]]; then
+            exit 0
+          fi
+          command=(
+            python .github/scripts/hec_performance_benchmark.py write-summary
+            "$sender" "$search" "$GITHUB_STEP_SUMMARY"
+          )
+          if [[ -n "${INDEXING_LAG_SECONDS:-}" ]]; then
+            command+=(--indexing-lag-seconds "$INDEXING_LAG_SECONDS")
+          fi
+          "${command[@]}"
+
+      - name: Upload sanitized failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hec-performance-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hec-benchmark-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 7
