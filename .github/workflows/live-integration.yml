@@ -97,7 +97,7 @@ jobs:
             -app "$SPLUNKAPP" -o "$RUNNER_TEMP/splunkresults.json" > /dev/null
           echo "RENDERED_QUERY_CONFIG=$rendered" >> "$GITHUB_ENV"
 
-      - name: Send smoke batch through SplunkHecAio
+      - name: Send standalone event and smoke batch through SplunkHecAio
         env:
           SPLUNK_HEC_HOST: ${{ secrets.SPLUNK_HEC_HOST }}
           SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
@@ -109,10 +109,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf 'status=sending_batch\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
+          printf 'status=sending_single_and_batch\n' > "$RUNNER_TEMP/splunk-hec-diagnostics.txt"
           python .github/scripts/live_hec_smoke.py send
 
-      - name: Confirm the batch is separately searchable
+      - name: Confirm the standalone event and batch are searchable
         env:
           SPLUNKBASEURL: ${{ secrets.SPLUNKBASEURL }}
           SPLUNKTOKEN: ${{ secrets.SPLUNKTOKEN }}
@@ -161,7 +161,7 @@ jobs:
             if (( matched >= 1 )); then
               printf 'status=success\nattempt=%s\nmatched=%s\n' \
                 "$attempt" "$matched" > "$diagnostics"
-              echo "Live integration verified three separately indexed batch events."
+              echo "Live integration verified one standalone event and three batch events."
               exit 0
             fi
 
@@ -179,9 +179,9 @@ jobs:
             sleep "$sleep_seconds"
           done
 
-          printf 'status=batch_not_verified\nattempts=%s\nmatched=0\n' \
+          printf 'status=single_or_batch_not_verified\nattempts=%s\nmatched=0\n' \
             "$attempt" > "$diagnostics"
-          echo "The three-event batch was not separately searchable within 80 seconds." >&2
+          echo "The standalone event or three-event batch was not verified within 80 seconds." >&2
           exit 1
 
       - name: Upload sanitized failure diagnostics

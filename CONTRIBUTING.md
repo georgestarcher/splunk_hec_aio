@@ -152,17 +152,19 @@ environment variables `SPLUNK_HEC_PORT`, `SPLUNK_HEC_INDEX`,
 not copy any of these values into workflow logs, committed files, or issue
 reports.
 
-For each run, the workflow queues three events with a shared unique
-`ci_test_id` and distinct batch positions, then flushes them together through
-the public `SplunkHecAio` interface. It renders the committed
+For each run, the workflow first sends and flushes one standalone event. It
+then queues three events with a shared unique `ci_test_id` and distinct batch
+positions and flushes them together through the public `SplunkHecAio`
+interface. It renders the committed
 `.github/querysplunk/hec-smoke.yml` template into a temporary file, validates
 it with a pinned and checksum-verified querysplunk release, and searches for
 the marker for at most 80 seconds. The search succeeds only when Splunk has at
-least three matching events and all three distinct positions. This permits
-at-least-once retry duplicates while proving the batch was parsed into
-individual events. Failure artifacts contain only a bounded status, attempt
-number, exit code, and match count—not tokens, endpoints, event bodies, SPL,
-or raw search results.
+least one standalone event plus at least three batch events with all three
+distinct positions. This permits at-least-once retry duplicates while proving
+both send shapes are searchable and the batch was parsed into individual
+events. Failure artifacts contain only a bounded status, attempt number, exit
+code, and match count—not tokens, endpoints, event bodies, SPL, or raw search
+results.
 
 ## Preserve the v2 baseline during v3 development
 
