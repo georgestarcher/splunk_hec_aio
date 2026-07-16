@@ -354,7 +354,7 @@ class TestHecPerformanceBenchmarkPolicy(unittest.TestCase):
         query = QUERY_PATH.read_text(encoding="utf-8")
 
         self.assertIn('schema_version: "1"', query)
-        self.assertIn('earliest_time: "-15m"', query)
+        self.assertIn('earliest_time: "-30m"', query)
         self.assertIn('latest_time: "now"', query)
         self.assertIn("max_count: 20000", query)
         self.assertIn("maximum_rows: 1", query)

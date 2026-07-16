@@ -31,7 +31,7 @@ search: |
       maximum_sequence observed_expected_count
 
 dispatch:
-  earliest_time: "-15m"
+  earliest_time: "-30m"
   latest_time: "now"
   max_count: 20000
   status_buckets: 0
