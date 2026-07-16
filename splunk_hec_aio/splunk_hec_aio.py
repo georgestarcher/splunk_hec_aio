@@ -309,13 +309,13 @@ class SplunkHecAio:
         self.log = logging.getLogger(u"SPLUNK_HEC")
         self.log.setLevel(logging.INFO)
 
+        if not isinstance(host, str) or not host.strip():
+            raise(ValueError("HOST must be a non-empty string."))
+        if not isinstance(token, str) or not token.strip():
+            raise(ValueError("HEC Token must be a non-empty string."))
+
         self.host = host
         self.token = token
-  
-        if self._http_post_task is None:
-            raise(ValueError("HOST is missing."))
-        if self.token is None:
-            raise(ValueError("HEC Token is missing."))
 
         # Set HEC HTTP Header to default True
         self.set_https()

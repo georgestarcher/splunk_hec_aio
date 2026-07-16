@@ -31,6 +31,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Made `str(sender)` side-effect-free. It preserves the existing representation
   fields but reports `Reachable=NotChecked`; callers that need a live result
   must invoke `check_connectivity()` explicitly.
+- Corrected constructor validation so `host` and `token` must be non-empty
+  strings. Missing, whitespace-only, and non-string values now raise a clear
+  `ValueError` before any sender configuration is initialized.
 
 ## [2.1.2] - 2026-07-15
 
