@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import splunk_hec_aio.splunk_hec_aio as runtime_module
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE_PATH = ROOT / "example.py"
+EXAMPLE_PATH = ROOT / "examples" / "example.py"
 README_PATH = ROOT / "README.md"
 
 
@@ -58,10 +58,7 @@ class TestReadmeQuickStart(unittest.TestCase):
         self.assertIn("Python 3.9 or later", readme)
 
 
-@unittest.skipUnless(
-    EXAMPLE_PATH.is_file(), "repository-only root example is unavailable"
-)
-class TestRootExample(unittest.TestCase):
+class TestMaintainedExample(unittest.TestCase):
     def test_example_uses_the_public_class_without_network_access(self):
         sender = MagicMock()
         sender.check_connectivity.return_value = True

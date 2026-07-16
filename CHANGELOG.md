@@ -25,6 +25,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- Moved the maintained live example from the repository root to
+  `examples/example.py` and included the examples directory in source
+  distributions while keeping it out of installed wheels.
 - Began the v3 development line at `3.0.0.dev0` while retaining v2.1.2 as the
   immutable final legacy-compatible v2 release.
 - Set the v3 supported-Python contract to Python 3.9 and later, with Python
