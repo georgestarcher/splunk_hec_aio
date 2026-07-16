@@ -1,72 +1,152 @@
 # Release verification and publication
 
 Releases are built from the same source and compatibility contract used by
-normal CI. The **Release verification** workflow is deliberately a dry run: it
-proves a candidate and retains the evidence for seven days, but it cannot
-create a tag, GitHub release, or PyPI upload. The separate **Publish verified
-GitHub release** workflow can consume that exact evidence only after a verified
-signed tag and explicit approval through the protected `GITHUB_RELEASE`
-environment.
+normal CI. **Release verification** is deliberately a dry run: it proves an
+exact candidate and retains the evidence for seven days, but cannot create a
+tag, GitHub release, or package-index upload. **Publish verified GitHub
+release** can consume that evidence only after a GitHub-verified signed tag and
+explicit approval through the protected `GITHUB_RELEASE` environment.
 
-The current `main` branch reports `3.0.0.dev0`. Both release workflows require
-a stable `X.Y.Z` version, so this development build is intentionally
-ineligible for verification or publication. The v2.1.2 instructions below are
-the retained record of the final legacy release and must not be rerun against
-its immutable tag. Issue
-[#44](https://github.com/georgestarcher/splunk_hec_aio/issues/44) owns the v3
-migration and release gates before a stable v3 candidate is prepared.
+The runtime module, distribution metadata, changelog, signed tag, wheel, source
+distribution, checksums, candidate manifest, and release notes must all identify
+the same stable `X.Y.Z` version and commit.
 
-## Distribution policy
+## Distribution and immutability policy
 
-The final planned v2 release, v2.1.2, uses GitHub Releases only. Existing
-releases and tags remain available and must never be deleted, overwritten,
-force-moved, or retagged. PyPI is not an established distribution channel for
-the v2 line, so the dry run has no package-index credentials or publishing
-permission.
+This project distributes releases through GitHub Releases rather than PyPI.
+Existing releases and tags remain available and must never be deleted,
+overwritten, force-moved, or retagged. In particular, v2.1.2 remains the
+immutable final legacy-compatible v2 release while v3 is the modern line.
 
-Publication remains a separate, approval-gated step tracked by issues
-[#20](https://github.com/georgestarcher/splunk_hec_aio/issues/20) and
-[#30](https://github.com/georgestarcher/splunk_hec_aio/issues/30). A successful
-dry run is evidence for that decision; it is not itself a release and cannot
-publish without a maintainer-created signed tag.
+Release verification and publication are manual workflows. Neither is
+triggered by a push, and neither creates a tag. Only the publication job has
+`contents: write`, and that job pauses at the protected `GITHUB_RELEASE`
+environment before creating the release.
 
-## Run the protected dry run for a stable candidate
+## V3.0.0 release checklist
 
-1. Merge the intended candidate commit to `main`. The workflow rejects any
-   other ref.
-2. Confirm that the runtime `__version__`, the `setup.cfg` authoritative-version
-   reference, and the dated `CHANGELOG.md` section describe the same stable
-   `X.Y.Z` version.
-3. In GitHub Actions, select **Release verification**, choose **Run workflow**
-   on `main`, enter the candidate version, and select one allowed v2
-   compatibility classification:
-   - `no-observable-behavior-change`;
-   - `backward-compatible-bug-fix`; or
-   - `opt-in-addition`.
-4. Wait for the complete compatibility, quality, and packaging workflows plus
-   the exact-candidate job. A breaking classification is intentionally not an
-   available v2 option.
-5. Download the temporary `release-candidate-...` workflow artifact and retain
-   its workflow-run URL for the release record.
+Issue [#44](https://github.com/georgestarcher/splunk_hec_aio/issues/44) is the
+release record. Do not create the tag or publish until every item below is
+complete on one unchanged `main` commit.
 
-The bundle contains exactly one wheel, one source distribution,
-`SHA256SUMS`, and `release-candidate.json`. The manifest records the full Git
-commit, branch ref, version, compatibility classification, filenames, and
-SHA-256 digests. The workflow checks both distributions with Twine and the
-repository allowlist, installs both exact artifacts outside the checkout, runs
-the public API snapshot, requires canonical distribution filenames, compares
-the packaged runtime files byte-for-byte with the signed checkout, and verifies
-the checksums after staging the bundle.
+### Prepare the candidate
 
-The workflow has read-only repository permission, uses no environment or
-secret, and has no tag or publication trigger. Its candidate artifact expires
-after seven days and must not be presented as an official release asset.
+1. Confirm the runtime `__version__` is `3.0.0`, `setup.cfg` obtains the
+   distribution version from that attribute, the package status is stable, and
+   `CHANGELOG.md` contains a dated `3.0.0` section.
+2. Review the complete `v2.1.2...main` diff and the
+   [v3 migration guide](migrating-to-v3.md). Every observable change must be
+   traceable to its focused issue and test coverage.
+3. Confirm README installation instructions pin `v3.0.0`, explain the retained
+   v2.1.2 option, and do not recommend an untagged branch.
+4. Merge the reviewed candidate commit to `main`. Both release workflows reject
+   any other ref.
 
-## Reproduce the historical v2.1.2 artifact checks locally
+### Prove the unchanged `main` commit
+
+1. Confirm the normal compatibility, quality, and packaging checks passed for
+   the merged commit.
+2. Manually run **Live Splunk integration** from `main`. It must send one
+   standalone event and one three-event batch and use querysplunk to prove that
+   all four individual event rows are searchable. Record the workflow URL and
+   its exact commit on issue #44.
+3. Manually run **Release verification** from the same `main` commit with:
+
+   - version `3.0.0`;
+   - classification `breaking-major-release`.
+
+4. Wait for the reused compatibility, quality, and packaging workflows and the
+   exact-candidate job. Record the successful workflow URL and candidate commit
+   on issue #44.
+5. Download the temporary `release-candidate-...` artifact. Independently run
+   `sha256sum --check --strict SHA256SUMS` and inspect
+   `release-candidate.json`. Do not treat this expiring workflow artifact as a
+   published release.
+
+If `main` changes after either protected run, restart both runs on the new
+candidate commit. Evidence from different commits is not a release candidate.
+
+### Sign and publish the verified candidate
+
+After both protected runs pass on the unchanged current `main` tip, create and
+locally verify an annotated signed tag, then push only that tag:
+
+```shell
+git fetch --prune origin
+git switch main
+git pull --ff-only
+git tag -s v3.0.0 "$(git rev-parse HEAD)" \
+  -m "splunk_hec_aio v3.0.0"
+git tag -v v3.0.0
+git push origin refs/tags/v3.0.0
+```
+
+Never use `--force`, move an existing tag, or let a workflow create the tag.
+Confirm GitHub marks the annotated tag signature as verified. If verification
+is absent, stop and correct the signing configuration rather than weakening the
+workflow.
+
+Run **Publish verified GitHub release** from `main` with:
+
+- version `3.0.0`;
+- classification `breaking-major-release`;
+- the numeric run ID from the successful Release verification URL.
+
+The validation and preparation jobs prove that the workflow revision, current
+`main`, signed annotated tag, successful verification run, candidate manifest,
+artifact metadata, packaged runtime bytes, filenames, and SHA-256 digests all
+agree. They also reject an expired or unexpected bundle and refuse to overwrite
+an existing release.
+
+Review that evidence at the `GITHUB_RELEASE` environment approval. After
+approval, the publication job rechecks the tag and current `main`, creates the
+release with `--verify-tag` and `--fail-on-no-commits`, attaches exactly the
+wheel, source distribution, `SHA256SUMS`, and `release-candidate.json`, and
+verifies the published release and each asset against GitHub's immutable
+release attestation.
+
+### Post-publication audit
+
+After the workflow succeeds:
+
+1. Confirm v3.0.0 is neither a draft nor a pre-release and is marked latest.
+2. Download all four assets and independently recheck `SHA256SUMS`.
+3. Run `gh release verify v3.0.0` and
+   `gh release verify-asset v3.0.0 FILE` for every downloaded asset.
+4. Install both the wheel and source distribution in clean Python 3.9 and 3.13
+   environments outside the source checkout and run the installed public-API
+   checks.
+5. Confirm v2.1.2 and its source downloads remain available.
+6. Record the release URL, tag, commit, verification run, live Splunk run, and
+   post-publication results on issue #44 before closing it.
+
+## What Release verification proves
+
+The candidate bundle contains exactly one wheel, one source distribution,
+`SHA256SUMS`, and `release-candidate.json`. Its manifest records the full Git
+commit, branch ref, version, compatibility classification, canonical filenames,
+and SHA-256 digests.
+
+The workflow checks both distributions with Twine and the repository allowlist,
+installs both artifacts outside the checkout, runs the public API snapshot,
+compares packaged runtime files byte-for-byte with the checked-out source, and
+verifies the staged checksums. It has read-only repository permission, no
+environment, no secret, no publication permission, and no tag or publication
+trigger.
+
+The allowed evidence classifications are:
+
+- `no-observable-behavior-change`;
+- `backward-compatible-bug-fix`;
+- `opt-in-addition`;
+- `breaking-major-release`, which is accepted only for an `X.0.0` release and
+  is required at major-version boundaries beginning with v3.
+
+## Reproduce historical v2.1.2 checks locally
 
 These commands apply only to the exact source at the signed `v2.1.2` tag, not
-to the v3 development branch. Create a disposable detached worktree and install
-the tagged development environment before running them:
+to the v3 branch. Use a disposable detached worktree so the historical source,
+metadata, and v2-only release helper remain together:
 
 ```shell
 git fetch --tags origin
@@ -76,11 +156,6 @@ cd ../splunk-hec-aio-v2.1.2
 python3.9 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
-```
-
-From that v2.1.2 worktree:
-
-```shell
 rm -rf build dist *.egg-info release-candidate
 python -m unittest discover -s tests -v
 python -m build
@@ -100,97 +175,25 @@ python .github/scripts/verify_release_candidate.py manifest \
   dist/*
 ```
 
-These commands target the historical v2.1.2 source. Local output is only
-diagnostic evidence; the completed GitHub-hosted run remains the release
-record. After validation, leave the detached worktree and remove it with
-`git worktree remove <path>` from the original checkout.
-
-## Historical v2.1.2 publication procedure
-
-Do not repeat this procedure for the existing immutable v2.1.2 release. For
-the historical record, maintainers confirmed that the candidate commit was the
-tip of `main`, recorded the successful Release verification and protected Live
-Splunk integration run URLs, and reviewed the complete diff from v2.1.1. The
-final release commit must contain version `2.1.2`, the dated changelog section,
-and the approved compatibility classification without an unapproved runtime
-or wire-visible behavior change.
-
-Create and locally verify an annotated signed tag at the exact candidate
-commit, then push only that new tag:
-
-```shell
-git fetch --prune origin
-git switch main
-git pull --ff-only
-git tag -s v2.1.2 "$(git rev-parse HEAD)" \
-  -m "splunk_hec_aio v2.1.2 - final planned legacy-compatible v2 release"
-git tag -v v2.1.2
-git push origin refs/tags/v2.1.2
-```
-
-Never use `--force`, move an existing tag, or let the release workflow create a
-tag implicitly. Confirm GitHub marks the annotated tag signature as verified.
-If verification is absent, stop and correct the signing configuration rather
-than weakening the workflow.
-
-In GitHub Actions, run **Publish verified GitHub release** from `main` with:
-
-- version `2.1.2`;
-- the exact compatibility classification used by Release verification; and
-- the numeric run ID from that successful Release verification URL.
-
-The workflow first proves, under read-only permissions, that:
-
-- the dispatched workflow revision and signed annotated tag both point to the
-  current `main` commit;
-- GitHub verified the tag signature;
-- the referenced Release verification run completed successfully on that same
-  commit from `main`;
-- the run retains exactly one expected, unexpired candidate bundle;
-- its version, compatibility class, commit, canonical filenames, manifest,
-  artifact metadata, packaged runtime bytes, signed source, and SHA-256 digests
-  all agree; and
-- neither a release for the tag nor an unexpected bundle file exists.
-
-Only the final job has `contents: write`, and it pauses at the protected
-`GITHUB_RELEASE` environment. Review the tag, commit, verification run, and
-candidate evidence before approving the deployment. After approval, the job
-rechecks the tag, current `main` tip, and bundle, creates the release with
-`--verify-tag` and `--fail-on-no-commits`, attaches exactly the wheel, source
-distribution, `SHA256SUMS`, and `release-candidate.json`, prepends the
-compatibility evidence to generated notes, and verifies the published state,
-asset names, immutable release attestation, and each local asset against that
-attestation. Repository release immutability must remain enabled so the
-published tag and assets cannot be moved, replaced, or deleted and GitHub
-generates the release provenance.
-
-After publication, maintainers must also:
-
-- download all four v2.1.2 assets and independently recheck `SHA256SUMS`;
-- run `gh release verify v2.1.2` and `gh release verify-asset v2.1.2 FILE`
-  for each downloaded asset;
-- confirm the historical v2.1.1 release and source downloads remain available,
-  and all four v2.1.2 assets are downloadable;
-- verify the release is neither a draft nor a pre-release and is marked latest;
-  and
-- record the release and workflow URLs on issue #30 before closing the release
-  work.
+Local output is diagnostic evidence only; the completed historical GitHub run
+and immutable v2.1.2 release remain the release record. Remove the worktree
+with `git worktree remove <path>` from the original checkout when finished. Do
+not rerun publication, move the v2.1.2 tag, or replace any v2.1.2 asset.
 
 ## Recovery
 
 Never replace an artifact or move a published tag. If a release is defective,
-stop recommending it, document the impact, and publish a new corrective
-version after the normal gates. A GitHub release may be marked as a pre-release
-or otherwise withdrawn from recommendation while its immutable evidence and
-the prior releases remain available.
+stop recommending it, document the impact, and publish a new corrective version
+after the normal gates. A release may be marked as a pre-release or otherwise
+withdrawn from recommendation while its immutable evidence and prior releases
+remain available.
 
-If publication fails before the draft becomes public, inspect the draft and
+If publication fails before a draft becomes public, inspect the draft and
 workflow logs. Because immutability begins only when publication completes, an
-administrator may delete that unpublished draft after confirming that no public
+administrator may delete that unpublished draft after confirming no public
 release exists, then rerun the full validation and approval path. Never apply
 this cleanup procedure to a published release.
 
-Because v2 is not published on PyPI, there is no v2 package-index yank step. If
-a future major release adopts PyPI, it must use Trusted Publishing with a
-protected environment and document index-specific yank and recovery steps
+If a future release adopts PyPI, it must use Trusted Publishing with a protected
+environment and document index-specific verification, yank, and recovery steps
 before that channel is enabled.

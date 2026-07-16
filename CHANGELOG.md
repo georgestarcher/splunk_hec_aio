@@ -7,8 +7,21 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-16
+
+This major release raises the supported Python floor to 3.9 and delivers the
+behavior corrections and opt-in delivery modes developed after v2.1.2. The
+immutable v2.1.2 release remains available for callers that need the legacy
+Python or runtime contract. See the [v3 migration guide](docs/migrating-to-v3.md)
+before upgrading.
+
 ### Added
 
+- A v2-to-v3 migration guide with explicit stay-on-v2 and upgrade paths,
+  corrected behavior, delivery-mode selection, and verification guidance.
+- Major-release support in the exact-candidate verification and protected
+  immutable-publication workflows, including a required
+  `breaking-major-release` evidence classification.
 - Additive `post_data_ack()` and `flush_ack()` indexer-acknowledgment APIs, with
   matching async entry points, stable per-sender channels, structured confirmed
   results and bounded failures, configurable polling deadlines, immediate
@@ -47,17 +60,17 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Moved the maintained live example from the repository root to
   `examples/example.py` and included the examples directory in source
   distributions while keeping it out of installed wheels.
-- Began the v3 development line at `3.0.0.dev0` while retaining v2.1.2 as the
-  immutable final legacy-compatible v2 release.
+- Finalized the v3 development line as stable `3.0.0` while retaining v2.1.2
+  as the immutable final legacy-compatible v2 release.
 - Set the v3 supported-Python contract to Python 3.9 and later, with Python
   3.13 as the primary modern tooling target and classifiers for every supported
   Python minor version.
-- Marked development artifacts as alpha builds and updated metadata, artifact
+- Marked v3 artifacts as production/stable and updated metadata, artifact
   verification, contributor guidance, and release documentation for the new
   support matrix.
-- Preserved v2.1.2 dependencies, nested import identity, public API snapshot,
-  request behavior, and runtime implementation; only the authoritative version
-  identifier changes in the installed module for this foundation update.
+- Preserved v2.1.2 runtime dependencies, nested import identity, compatible
+  method signatures and defaults, and the legacy `None` return contract while
+  isolating each approved behavior correction behind focused tests.
 
 ### Fixed
 
@@ -176,7 +189,8 @@ only its authoritative version identifier from `2.1.1` to `2.1.2`.
 
 - Initial public v2 release of the asynchronous Splunk HEC sender.
 
-[Unreleased]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.2...HEAD
+[Unreleased]: https://github.com/georgestarcher/splunk_hec_aio/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.2...v3.0.0
 [2.1.2]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/georgestarcher/splunk_hec_aio/compare/v2.0.0...v2.1.0

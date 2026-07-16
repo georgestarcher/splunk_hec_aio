@@ -15,7 +15,7 @@ EXPECTED_RUNTIME_MODULES = {
 }
 EXPECTED_RUNTIME_REQUIREMENTS = {"aiohttp", "aiohttp-retry"}
 EXPECTED_CLASSIFIERS = {
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -204,6 +204,9 @@ def verify_sdist(path, expected_version):
     required = {
         "{}/LICENSE".format(root),
         "{}/README.md".format(root),
+        "{}/docs/compatibility.md".format(root),
+        "{}/docs/migrating-to-v3.md".format(root),
+        "{}/docs/releasing.md".format(root),
         "{}/examples/README.md".format(root),
         "{}/examples/example.py".format(root),
         "{}/pyproject.toml".format(root),

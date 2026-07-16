@@ -8,13 +8,14 @@ on:
         required: true
         type: string
       compatibility:
-        description: v2 compatibility classification from verification
+        description: Compatibility classification from verification
         required: true
         type: choice
         options:
           - no-observable-behavior-change
           - backward-compatible-bug-fix
           - opt-in-addition
+          - breaking-major-release
       verification_run_id:
         description: Successful Release verification workflow run ID
         required: true
@@ -290,8 +291,33 @@ jobs:
             echo "Release already exists for $EXPECTED_TAG; refusing to overwrite it." >&2
             exit 1
           fi
-          printf -v RELEASE_NOTES '%s\n\n%s\n\n%s\n%s\n' \
-            "Final planned legacy-compatible v2 release. Existing releases remain available." \
+          case "$COMPATIBILITY_CLASSIFICATION" in
+            no-observable-behavior-change)
+              release_summary="Release with no intended observable behavior change."
+              ;;
+            backward-compatible-bug-fix)
+              release_summary="Backward-compatible bug-fix release."
+              ;;
+            opt-in-addition)
+              release_summary="Release with additive, opt-in functionality."
+              ;;
+            breaking-major-release)
+              release_summary="Major release with documented migration requirements. Earlier releases remain available."
+              ;;
+            *)
+              echo "Unexpected compatibility classification." >&2
+              exit 1
+              ;;
+          esac
+          migration_note=""
+          if [[ "$RELEASE_VERSION" == "3.0.0" ]] && \
+             [[ "$COMPATIBILITY_CLASSIFICATION" == "breaking-major-release" ]]; then
+            release_summary="Major v3 release with documented migration requirements. The immutable v2.1.2 release remains available for legacy users."
+            migration_note="Migration guide: https://github.com/$GITHUB_REPOSITORY/blob/$EXPECTED_TAG/docs/migrating-to-v3.md"
+          fi
+          printf -v RELEASE_NOTES '%s\n\n%s\n%s\n\n%s\n%s\n' \
+            "$release_summary" \
+            "$migration_note" \
             "Compatibility classification: \`$COMPATIBILITY_CLASSIFICATION\`." \
             "Verified commit: \`$EXPECTED_COMMIT\`." \
             "Release evidence: https://github.com/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID"

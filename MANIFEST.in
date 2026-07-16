@@ -4,6 +4,7 @@ include README.md
 include pyproject.toml
 include setup.cfg
 include setup.py
+recursive-include docs *.md
 recursive-include examples *.md *.py
 recursive-include splunk_hec_aio *.py
 recursive-include tests *.json *.md *.py

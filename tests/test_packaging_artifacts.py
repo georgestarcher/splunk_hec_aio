@@ -15,7 +15,7 @@ SPEC.loader.exec_module(verify_artifacts)
 
 class TestPackagingArtifactPolicy(unittest.TestCase):
     def test_artifact_version_defaults_to_the_authoritative_runtime_source(self):
-        self.assertEqual(verify_artifacts.read_source_version(ROOT), "3.0.0.dev0")
+        self.assertEqual(verify_artifacts.read_source_version(ROOT), "3.0.0")
 
     def test_metadata_verification_honors_a_supplied_candidate_version(self):
         metadata = MagicMock()

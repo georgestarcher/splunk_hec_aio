@@ -74,7 +74,7 @@ def main(arguments=None):
     if distribution.metadata["Requires-Python"] != ">=3.9":
         raise SystemExit("installed Requires-Python changed")
     expected_classifiers = {
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",

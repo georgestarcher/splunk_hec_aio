@@ -17,6 +17,7 @@ ALLOWED_CLASSIFICATIONS = {
     "no-observable-behavior-change",
     "backward-compatible-bug-fix",
     "opt-in-addition",
+    "breaking-major-release",
 }
 VERSION_ATTRIBUTE = "splunk_hec_aio.splunk_hec_aio.__version__"
 RUNTIME_FILES = (
@@ -48,10 +49,17 @@ def read_source_version(path: Path) -> str:
 
 
 def validate_candidate_identity(version: str, classification: str, ref: str):
-    if not STABLE_VERSION.fullmatch(version):
+    match = STABLE_VERSION.fullmatch(version)
+    if match is None:
         fail("version must be a stable semantic version in X.Y.Z form")
     if classification not in ALLOWED_CLASSIFICATIONS:
-        fail("classification is not eligible for a v2 release")
+        fail("classification is not eligible for release verification")
+    major, minor, patch = (int(component) for component in match.groups())
+    is_major_boundary = major >= 1 and minor == 0 and patch == 0
+    if classification == "breaking-major-release" and not is_major_boundary:
+        fail("breaking-major-release requires an X.0.0 version")
+    if major >= 3 and is_major_boundary and classification != "breaking-major-release":
+        fail("an X.0.0 major release must use breaking-major-release")
     if ref != "refs/heads/main":
         fail("release verification must run from refs/heads/main")
 

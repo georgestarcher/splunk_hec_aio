@@ -3,14 +3,14 @@
 An asynchronous Python client for batching and sending JSON or raw events to a
 Splunk HTTP Event Collector (HEC).
 
-The latest published release is
-[`v2.1.2`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.2).
-It is the final planned legacy-compatible v2 release. The previous
-[`v2.1.1`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.1)
-release and all other existing releases remain available on the
+The latest stable release is
+[`v3.0.0`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v3.0.0).
+It requires Python 3.9 or later. The immutable
+[`v2.1.2`](https://github.com/georgestarcher/splunk_hec_aio/releases/tag/v2.1.2)
+release remains available as the final legacy-compatible v2 release. Review
+the [v3 migration guide](docs/migrating-to-v3.md) before replacing a v2 pin.
+All releases remain available on the
 [GitHub Releases page](https://github.com/georgestarcher/splunk_hec_aio/releases).
-The `main` branch is now the unreleased v3 development line and reports
-`3.0.0.dev0`.
 
 Maintained by George Starcher (starcher). Licensed under the
 [MIT License](LICENSE).
@@ -24,17 +24,24 @@ Your HEC token must be allowed to write to every index selected by the client.
 
 ## Install
 
-The v2 line is distributed through GitHub Releases rather than PyPI. Pin the
-tag when installing the current stable release:
+The project is distributed through GitHub Releases rather than PyPI. Pin the
+stable v3 tag for new installations:
+
+```shell
+python -m pip install \
+  "git+https://github.com/georgestarcher/splunk_hec_aio.git@v3.0.0"
+```
+
+Applications that need the legacy Python or exact v2 runtime contract can stay
+on the immutable `v2.1.2` tag:
 
 ```shell
 python -m pip install \
   "git+https://github.com/georgestarcher/splunk_hec_aio.git@v2.1.2"
 ```
 
-Installing from untagged `main` opts into the v3 prerelease, which requires
-Python 3.9 or later and is not a stable release. For a local checkout used for
-development, follow the environment and test commands in
+Do not install production applications from untagged `main`. For a local
+checkout used for development, follow the environment and test commands in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Quick start
@@ -87,9 +94,11 @@ sender.post_data(event)
 sender.flush()
 ```
 
-These methods preserve v2 behavior, return `None`, and are appropriate when
-delivery logging is sufficient. The v3 development line also provides an
-optional strict path:
+These methods retain their documented names, defaults, `None` return contract,
+and logging-oriented failure handling. V3 corrects documented constructor,
+connectivity, batching, and payload behaviors, so this compatible API path is
+not a promise of byte-for-byte v2 behavior. V3 also provides an optional strict
+path:
 
 ```python
 results = sender.post_data_strict(event)
@@ -147,11 +156,11 @@ patterns in detail.
 
 ## Compatibility and project documentation
 
-The immutable v2.1.2 release preserves the released public API and existing
-user behavior. The v3 development line currently preserves that API and
-behavior while establishing its supported-Python baseline. The compatibility
-policy and local baseline-test command are documented in
-[`docs/compatibility.md`](docs/compatibility.md).
+The immutable v2.1.2 release preserves its released public API and behavior.
+V3 retains the documented nested import and compatible synchronous entry
+points while deliberately correcting the behaviors described in the
+[migration guide](docs/migrating-to-v3.md). The compatibility policy and local
+baseline-test command are documented in [`docs/compatibility.md`](docs/compatibility.md).
 Contributor setup and review requirements are documented in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
@@ -165,6 +174,7 @@ Additional project documentation:
 - [Changelog](CHANGELOG.md)
 - [Examples](examples/README.md)
 - [License](LICENSE)
+- [Migrate from v2.1.2 to v3](docs/migrating-to-v3.md)
 - [Release verification](docs/releasing.md)
 - [Security policy](SECURITY.md)
 - [User Wiki](https://github.com/georgestarcher/splunk_hec_aio/wiki)

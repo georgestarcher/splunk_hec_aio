@@ -8,13 +8,14 @@ on:
         required: true
         type: string
       compatibility:
-        description: v2 compatibility classification
+        description: Compatibility classification for this release
         required: true
         type: choice
         options:
           - no-observable-behavior-change
           - backward-compatible-bug-fix
           - opt-in-addition
+          - breaking-major-release
 
 permissions:
   contents: read

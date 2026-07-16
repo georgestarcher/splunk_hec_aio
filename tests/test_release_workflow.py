@@ -89,20 +89,43 @@ def write_fake_artifacts(directory: Path, version: str):
     HELPER_PATH.is_file(), "repository-only release helper is unavailable"
 )
 class TestReleaseCandidateHelper(unittest.TestCase):
-    def test_current_development_source_is_not_a_stable_release_candidate(self):
+    def test_prerelease_version_is_not_a_stable_release_candidate(self):
         with self.assertRaisesRegex(SystemExit, "stable semantic version"):
-            verify_release_candidate.validate_source(
-                ROOT,
+            verify_release_candidate.validate_candidate_identity(
                 "3.0.0.dev0",
-                "no-observable-behavior-change",
+                "breaking-major-release",
                 "refs/heads/main",
             )
 
+    def test_current_stable_source_is_a_breaking_major_candidate(self):
+        validated = verify_release_candidate.validate_source(
+            ROOT,
+            "3.0.0",
+            "breaking-major-release",
+            "refs/heads/main",
+        )
+
+        self.assertEqual(validated["version"], "3.0.0")
+        self.assertEqual(validated["classification"], "breaking-major-release")
+
+    def test_breaking_classification_requires_a_major_version_boundary(self):
+        rejected = (
+            ("2.1.2", "breaking-major-release"),
+            ("3.0.1", "breaking-major-release"),
+            ("3.0.0", "backward-compatible-bug-fix"),
+        )
+        for version, classification in rejected:
+            with self.subTest(version=version, classification=classification):
+                with self.assertRaises(SystemExit):
+                    verify_release_candidate.validate_candidate_identity(
+                        version, classification, "refs/heads/main"
+                    )
+
     def test_source_validation_rejects_wrong_ref_version_and_classification(self):
         cases = (
-            ("2.1.2", "no-observable-behavior-change", "refs/heads/topic"),
-            ("2.1.1", "no-observable-behavior-change", "refs/heads/main"),
-            ("2.1.2", "breaking-change", "refs/heads/main"),
+            ("3.0.0", "breaking-major-release", "refs/heads/topic"),
+            ("3.0.1", "backward-compatible-bug-fix", "refs/heads/main"),
+            ("3.0.0", "unexpected-classification", "refs/heads/main"),
         )
         for version, classification, ref in cases:
             with self.subTest(version=version, classification=classification, ref=ref):
@@ -281,16 +304,26 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
     def test_historical_v2_reproduction_uses_the_matching_signed_tag(self):
         documentation = RELEASE_DOCUMENTATION_PATH.read_text(encoding="utf-8")
         section = documentation.split(
-            "## Reproduce the historical v2.1.2 artifact checks locally", 1
-        )[1].split("## Historical v2.1.2 publication procedure", 1)[0]
+            "## Reproduce historical v2.1.2 checks locally", 1
+        )[1].split("## Recovery", 1)[0]
 
         self.assertIn("signed `v2.1.2` tag", section)
-        self.assertIn("v3 development branch", section)
+        self.assertIn("v3 branch", section)
         self.assertIn("git tag -v v2.1.2", section)
         self.assertIn(
             "git worktree add --detach ../splunk-hec-aio-v2.1.2 v2.1.2",
             section,
         )
+
+    def test_v3_release_checklist_requires_one_exact_proven_commit(self):
+        documentation = RELEASE_DOCUMENTATION_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("classification `breaking-major-release`", documentation)
+        self.assertIn("Live Splunk integration", documentation)
+        self.assertIn("all four individual event rows", documentation)
+        self.assertIn("If `main` changes", documentation)
+        self.assertIn("git tag -s v3.0.0", documentation)
+        self.assertIn("gh release verify v3.0.0", documentation)
 
     def test_release_workflow_is_manual_read_only_and_nonpublishing(self):
         workflow = RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -310,6 +343,8 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
         first_checkout = workflow.index("Check out repository")
         self.assertLess(guard, first_checkout)
         self.assertIn('[[ "$GITHUB_REF" != "refs/heads/main" ]]', workflow)
+        self.assertIn("breaking-major-release", workflow)
+        self.assertNotIn("v2 compatibility classification", workflow)
 
     def test_release_workflow_reuses_every_protected_secret_free_gate(self):
         workflow = RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -359,6 +394,9 @@ class TestReleaseWorkflowPolicy(unittest.TestCase):
         guard = workflow.index("Require the main branch before checkout")
         first_checkout = workflow.index("Check out the verified release commit")
         self.assertLess(guard, first_checkout)
+        self.assertIn("breaking-major-release", workflow)
+        self.assertIn("docs/migrating-to-v3.md", workflow)
+        self.assertNotIn("Final planned legacy-compatible v2 release", workflow)
 
     def test_publication_consumes_verified_evidence_without_rebuilding(self):
         workflow = PUBLICATION_WORKFLOW_PATH.read_text(encoding="utf-8")

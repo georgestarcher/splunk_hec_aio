@@ -18,7 +18,7 @@ body:
     attributes:
       label: splunk_hec_aio version
       description: Provide the release, tag, or commit you are using.
-      placeholder: "2.1.2 or 3.0.0.dev0"
+      placeholder: "2.1.2 or 3.0.0"
     validations:
       required: true
 
