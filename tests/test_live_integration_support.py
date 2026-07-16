@@ -236,10 +236,17 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
         self.assertNotIn("\n  pull_request:", workflow)
         self.assertIn("environment: SPLUNK_INTEGRATION", workflow)
         self.assertIn("deadline_seconds=80", workflow)
+        self.assertIn("QUERYSPLUNK_VERSION: v2.3.0", workflow)
         self.assertIn(
-            "aac64cf0400a16ac76d2f2e3349d5e093872ba87b20a30bef87b34847532607d",
+            "QUERYSPLUNK_ARCHIVE: splunkquery-v2.3.0-linux-amd64.tar.gz",
             workflow,
         )
+        self.assertIn(
+            "6703ce96ed127e82bddc7ad10f7d17a33b80a7e0df50af8fd6aa916d3b5a6e67",
+            workflow,
+        )
+        self.assertIn('${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery', workflow)
+        self.assertNotIn("v2.2.0", workflow)
         for line in workflow.splitlines():
             if "uses: actions/" in line:
                 reference = line.split("@", 1)[1].split()[0]
@@ -248,6 +255,7 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
     def test_query_requires_standalone_event_and_three_batch_positions(self):
         query = QUERY_PATH.read_text(encoding="utf-8")
 
+        self.assertIn('schema_version: "1"', query)
         self.assertIn('earliest_time: "-10m"', query)
         self.assertIn('latest_time: "now"', query)
         self.assertNotIn("  max_count:", query)
@@ -261,6 +269,11 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
         self.assertIn("| stats count as matched", query)
         self.assertIn("    - send_shape", query)
         self.assertIn("    - batch_position", query)
+        self.assertIn("result_handling:", query)
+        self.assertIn("result_contract:", query)
+        self.assertIn("    - matched", query)
+        self.assertIn("allow_empty: false", query)
+        self.assertIn("maximum_rows: 1", query)
         self.assertIn("allow_index_wildcard: false", query)
 
 

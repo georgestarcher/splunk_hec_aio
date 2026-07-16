@@ -341,10 +341,17 @@ class TestHecPerformanceBenchmarkPolicy(unittest.TestCase):
         self.assertIn("deadline_seconds=180", workflow)
         self.assertIn("hec_performance_benchmark.py run", workflow)
         self.assertNotIn("check_connectivity", workflow)
+        self.assertIn("QUERYSPLUNK_VERSION: v2.3.0", workflow)
         self.assertIn(
-            "aac64cf0400a16ac76d2f2e3349d5e093872ba87b20a30bef87b34847532607d",
+            "QUERYSPLUNK_ARCHIVE: splunkquery-v2.3.0-linux-amd64.tar.gz",
             workflow,
         )
+        self.assertIn(
+            "6703ce96ed127e82bddc7ad10f7d17a33b80a7e0df50af8fd6aa916d3b5a6e67",
+            workflow,
+        )
+        self.assertIn('${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery', workflow)
+        self.assertNotIn("v2.2.0", workflow)
         for line in workflow.splitlines():
             if "uses: actions/" in line:
                 reference = line.split("@", 1)[1].split()[0]
