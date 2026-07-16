@@ -245,7 +245,7 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
             "6703ce96ed127e82bddc7ad10f7d17a33b80a7e0df50af8fd6aa916d3b5a6e67",
             workflow,
         )
-        self.assertIn('${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery', workflow)
+        self.assertIn("${QUERYSPLUNK_ARCHIVE%.tar.gz}/splunkquery", workflow)
         self.assertNotIn("v2.2.0", workflow)
         for line in workflow.splitlines():
             if "uses: actions/" in line:
