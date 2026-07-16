@@ -1024,12 +1024,17 @@ class SplunkHecAio:
     async def _poll_acknowledgments(self,timeout,poll_interval):
         """Poll pending ACK IDs until confirmed or the bounded deadline ends."""
 
+        results = list(self._ack_deferred_results)
         if not self._ack_pending:
-            return tuple()
+            return tuple(
+                sorted(
+                    results,
+                    key=lambda result:(result.batch_index,result.ack_id),
+                )
+            )
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
-        results = []
         while self._ack_pending:
             remaining = deadline - loop.time()
             if remaining <= 0:
@@ -1088,14 +1093,14 @@ class SplunkHecAio:
             for ack_id in ack_ids:
                 if statuses[ack_id]:
                     pending = self._ack_pending.pop(ack_id)
-                    results.append(
-                        HecAcknowledgmentResult(
-                            batch_index=pending.batch_index,
-                            event_count=pending.event_count,
-                            ack_id=pending.ack_id,
-                            acknowledged=True,
-                        )
+                    result = HecAcknowledgmentResult(
+                        batch_index=pending.batch_index,
+                        event_count=pending.event_count,
+                        ack_id=pending.ack_id,
+                        acknowledged=True,
                     )
+                    results.append(result)
+                    self._ack_deferred_results.append(result)
 
             if self._ack_pending:
                 remaining = deadline - loop.time()
@@ -1137,6 +1142,7 @@ class SplunkHecAio:
             raise
         except HecAcknowledgmentError as error:
             self._ack_deferred_failures.clear()
+            self._ack_deferred_results.clear()
             raise HecAcknowledgmentError(
                 error.results,
                 delivery_failures + list(error.failures),
@@ -1144,8 +1150,10 @@ class SplunkHecAio:
 
         if delivery_failures:
             self._ack_deferred_failures.clear()
+            self._ack_deferred_results.clear()
             raise HecAcknowledgmentError(results,delivery_failures)
         self._ack_deferred_failures.clear()
+        self._ack_deferred_results.clear()
         return results
     
      # ASync Web Get Method Specific for Checking HEC Service Health
@@ -1221,6 +1229,7 @@ class SplunkHecAio:
         self._ack_channel = None
         self._ack_pending = {}
         self._ack_deferred_failures = []
+        self._ack_deferred_results = []
 
         # Set Default batch max size for max bytes for the HTTP Endpoint.
         # Auto flush will occur if next event payload will exceed limit.
@@ -2004,6 +2013,7 @@ class SplunkHecAio:
             self.post_queue.is_empty
             and not self._ack_pending
             and not self._ack_deferred_failures
+            and not self._ack_deferred_results
         ):
             return tuple()
         return await self._post_batch_ack(timeout,poll_interval)

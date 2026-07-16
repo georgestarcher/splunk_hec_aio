@@ -342,6 +342,62 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resumed[0].ack_id, 40)
         self.assertEqual(self.sender._ack_pending, {})
 
+    async def test_poll_cancellation_preserves_confirmed_result(self):
+        for ack_id in (46, 47):
+            self.sender._ack_pending[ack_id] = HecAcknowledgmentResult(
+                batch_index=ack_id - 46,
+                event_count=1,
+                ack_id=ack_id,
+                acknowledged=False,
+            )
+
+        second_poll_started = asyncio.Event()
+        poll_count = 0
+
+        async def acknowledge(ack_ids, channel, request_timeout):
+            nonlocal poll_count
+            del channel, request_timeout
+            poll_count += 1
+            if poll_count == 1:
+                self.assertEqual(ack_ids, (46, 47))
+                return {46: True, 47: False}
+            self.assertEqual(ack_ids, (47,))
+            second_poll_started.set()
+            await asyncio.Future()
+
+        with patch.object(
+            self.sender,
+            "_http_ack_status_task",
+            new=AsyncMock(side_effect=acknowledge),
+        ):
+            flush = asyncio.create_task(
+                self.sender.flush_ack_async(timeout=1, poll_interval=0.001)
+            )
+            await second_poll_started.wait()
+            flush.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await flush
+
+        self.assertEqual(set(self.sender._ack_pending), {47})
+        self.assertEqual(
+            [result.ack_id for result in self.sender._ack_deferred_results],
+            [46],
+        )
+
+        with patch.object(
+            self.sender,
+            "_http_ack_status_task",
+            new=AsyncMock(return_value={47: True}),
+        ):
+            resumed = await self.sender.flush_ack_async(
+                timeout=1,
+                poll_interval=0.01,
+            )
+
+        self.assertEqual([result.ack_id for result in resumed], [46, 47])
+        self.assertEqual(self.sender._ack_pending, {})
+        self.assertEqual(self.sender._ack_deferred_results, [])
+
     async def test_poll_cancellation_preserves_known_delivery_failure(self):
         def event_response(request, body):
             del request
