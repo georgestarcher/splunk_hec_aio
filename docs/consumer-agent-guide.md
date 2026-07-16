@@ -96,7 +96,15 @@ sender.set_port(int(os.environ.get("SPLUNK_HEC_PORT", "443")))
 sender.set_sourcetype(os.environ.get("SPLUNK_HEC_SOURCETYPE", "splunk_hec_aio"))
 if index := os.environ.get("SPLUNK_HEC_INDEX"):
     sender.set_index(index)
+if source := os.environ.get("SPLUNK_HEC_SOURCE"):
+    sender.set_source(source)
+if event_host := os.environ.get("SPLUNK_EVENT_HOST"):
+    sender.set_host(event_host)
 ```
+
+`SPLUNK_HEC_SOURCE` and `SPLUNK_EVENT_HOST` are optional. Set them only when
+the consuming application has confirmed metadata values; leaving either unset
+preserves the module's default for that field.
 
 Port `443` is typical for Splunk Cloud Platform. Splunk Enterprise commonly
 uses HEC port `8088`; the deployment administrator's actual configuration is
