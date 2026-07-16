@@ -364,8 +364,12 @@ class SplunkHecAio:
                none
             Returns:
                 str: string of the attributes of the configured Splunk HTTP receiver.
+
+            Notes:
+                Reachability is not checked while rendering. Call
+                check_connectivity() explicitly when a live result is needed.
         """
-        return "Splunk: HOST={0} HTTPS={1} Reachable={2} PopEmptyFields={3} PayloadModeJSON={4} ConcurrentPostLimit={5}".format(self.host,self.get_https(),self.check_connectivity(),self._pop_empty_fields,self._payload_mode_json,self.get_concurrent_post_limit())
+        return "Splunk: HOST={0} HTTPS={1} Reachable={2} PopEmptyFields={3} PayloadModeJSON={4} ConcurrentPostLimit={5}".format(self.host,self.get_https(),"NotChecked",self._pop_empty_fields,self._payload_mode_json,self.get_concurrent_post_limit())
   
     @property 
     def retry_http_status_codes(self):

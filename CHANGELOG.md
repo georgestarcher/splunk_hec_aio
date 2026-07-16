@@ -26,6 +26,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   request behavior, and runtime implementation; only the authoritative version
   identifier changes in the installed module for this foundation update.
 
+### Fixed
+
+- Made `str(sender)` side-effect-free. It preserves the existing representation
+  fields but reports `Reachable=NotChecked`; callers that need a live result
+  must invoke `check_connectivity()` explicitly.
+
 ## [2.1.2] - 2026-07-15
 
 This is the final planned legacy-compatible v2 release. It preserves the
