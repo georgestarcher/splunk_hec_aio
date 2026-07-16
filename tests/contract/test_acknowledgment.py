@@ -11,6 +11,7 @@ from splunk_hec_aio.splunk_hec_aio import (
     HecAcknowledgmentError,
     HecAcknowledgmentResult,
     HecDeliveryResult,
+    HecResponseError,
     SplunkHecAio,
     _HecAcknowledgmentDelivery,
 )
@@ -439,6 +440,119 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
             self.sender.post_queue.elements[0],
             [{"event": "cancelled"}],
         )
+
+    async def test_later_wave_cancellation_preserves_earlier_ack_outcomes(self):
+        self.sender.set_concurrent_post_limit(1)
+        self.sender.post_queue.enqueue([{"event": "accepted"}])
+        self.sender.post_queue.enqueue([{"event": "rejected"}])
+        self.sender.post_queue.enqueue([{"event": "cancelled"}])
+        third_started = asyncio.Event()
+
+        async def deliver(url, batch, batch_index, ack_channel):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            self.assertEqual(ack_channel, self.sender._ack_channel)
+            if batch_index == 0:
+                return _HecAcknowledgmentDelivery(
+                    delivery=HecDeliveryResult(
+                        batch_index=batch_index,
+                        event_count=len(batch),
+                        http_status=200,
+                        http_reason="OK",
+                        hec_code=0,
+                        hec_text="Success",
+                        invalid_event_number=None,
+                        accepted=True,
+                        retryable=False,
+                    ),
+                    ack_id=43,
+                )
+            if batch_index == 1:
+                raise HecResponseError(
+                    HecDeliveryResult(
+                        batch_index=batch_index,
+                        event_count=len(batch),
+                        http_status=400,
+                        http_reason="Bad Request",
+                        hec_code=5,
+                        hec_text="Invalid event",
+                        invalid_event_number=None,
+                        accepted=False,
+                        retryable=False,
+                    )
+                )
+            third_started.set()
+            await asyncio.Future()
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=deliver),
+        ):
+            flush = asyncio.create_task(
+                self.sender.flush_ack_async(timeout=1, poll_interval=0.01)
+            )
+            await third_started.wait()
+            flush.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await flush
+
+        self.assertEqual(set(self.sender._ack_pending), {43})
+        self.assertEqual(len(self.sender._ack_deferred_failures), 1)
+        self.assertEqual(
+            self.sender._ack_deferred_failures[0].category,
+            "delivery rejected",
+        )
+        self.assertEqual(
+            self.sender.post_queue.elements,
+            [[{"event": "cancelled"}]],
+        )
+
+        async def deliver_resumed(url, batch, batch_index, ack_channel):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            self.assertEqual(batch_index, 2)
+            self.assertEqual(ack_channel, self.sender._ack_channel)
+            return _HecAcknowledgmentDelivery(
+                delivery=HecDeliveryResult(
+                    batch_index=batch_index,
+                    event_count=len(batch),
+                    http_status=200,
+                    http_reason="OK",
+                    hec_code=0,
+                    hec_text="Success",
+                    invalid_event_number=None,
+                    accepted=True,
+                    retryable=False,
+                ),
+                ack_id=45,
+            )
+
+        with (
+            patch.object(
+                self.sender,
+                "_http_post_strict_task",
+                new=AsyncMock(side_effect=deliver_resumed),
+            ),
+            patch.object(
+                self.sender,
+                "_http_ack_status_task",
+                new=AsyncMock(return_value={43: True, 45: True}),
+            ),
+        ):
+            with self.assertRaises(HecAcknowledgmentError) as resumed:
+                await self.sender.flush_ack_async(
+                    timeout=1,
+                    poll_interval=0.01,
+                )
+
+        self.assertEqual(
+            [result.ack_id for result in resumed.exception.results],
+            [43, 45],
+        )
+        self.assertEqual(len(resumed.exception.failures), 1)
+        self.assertEqual(resumed.exception.failures[0].batch_index, 1)
+        self.assertEqual(self.sender._ack_pending, {})
+        self.assertEqual(self.sender._ack_deferred_failures, [])
+        self.assertTrue(self.sender.post_queue.is_empty)
 
     async def test_polling_controls_are_finite_positive_numbers(self):
         invalid_values = (True, 0, -1, math.inf, math.nan, "1")

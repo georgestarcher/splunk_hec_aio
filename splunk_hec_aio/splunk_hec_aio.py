@@ -731,7 +731,9 @@ class SplunkHecAio:
                 retained_batch_positions.update(range(wave_stop,len(batches)))
                 retain_batches(retained_batch_positions)
                 if ack_channel is not None:
-                    self._defer_ack_outcomes(cancelled_outcomes)
+                    self._defer_ack_outcomes(
+                        results + failures + cancelled_outcomes
+                    )
                 raise
 
             for batch_position,outcome in zip(wave_positions,outcomes):
