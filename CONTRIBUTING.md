@@ -155,9 +155,11 @@ reports.
 For each run, the workflow first requires the documented HEC health endpoint to
 report healthy. That service check is unauthenticated and does not validate the
 ingest token or prove delivery. The workflow then sends and flushes one
-standalone event, queues three events with a shared unique `ci_test_id` and
-distinct batch positions, and flushes them together through the public
-`SplunkHecAio` interface. It renders the committed
+standalone event through the compatibility path, queues three events with a
+shared unique `ci_test_id` and distinct batch positions, and flushes them
+together through the public strict result/exception path. This proves both the
+legacy default and the additive strict delivery API against the same live HEC
+service. It renders the committed
 `.github/querysplunk/hec-smoke.yml` template into a temporary file, validates
 it with a pinned and checksum-verified querysplunk release, and searches for
 the marker for at most 80 seconds. The search succeeds only when Splunk has at

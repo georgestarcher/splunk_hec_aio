@@ -9,6 +9,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- Additive `post_data_strict()` and `flush_strict()` delivery APIs with
+  structured per-batch HEC results, bounded and token-redacted response
+  context, explicit connect/read/total timeouts, deterministic retryability,
+  propagated aggregate failures, ordered retention of retryable failed batches,
+  stable batch indexes across delivery attempts and flushes,
+  concurrency-bounded retry dispatch, and cancellation propagation with queued
+  retention for cancelled or unfinished batches. Existing `post_data()` and
+  `flush()` defaults remain
+  unchanged.
 - Linux runtime coverage for Python 3.10, 3.11, and 3.12, alongside the
   cross-platform Python 3.9 and 3.13 compatibility anchors.
 - A protected live integration assertion that sends one standalone JSON event
@@ -17,6 +26,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- Moved detailed guidance for delivery modes, configuration, batching, and
+  troubleshooting to the project Wiki while keeping installation, quick start,
+  and mode selection in the README.
+- Moved the maintained live example from the repository root to
+  `examples/example.py` and included the examples directory in source
+  distributions while keeping it out of installed wheels.
 - Began the v3 development line at `3.0.0.dev0` while retaining v2.1.2 as the
   immutable final legacy-compatible v2 release.
 - Set the v3 supported-Python contract to Python 3.9 and later, with Python

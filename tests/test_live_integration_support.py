@@ -167,9 +167,13 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
         sender.set_source.assert_called_once_with("github-actions")
         sender.set_sourcetype.assert_called_once_with("splunk_hec_aio_ci")
         sender.check_connectivity.assert_called_once_with()
-        self.assertEqual(sender.post_data.call_count, 4)
-        self.assertEqual(sender.flush.call_count, 2)
-        payloads = [call.args[0] for call in sender.post_data.call_args_list]
+        sender.post_data.assert_called_once()
+        sender.flush.assert_called_once_with()
+        self.assertEqual(sender.post_data_strict.call_count, 3)
+        sender.flush_strict.assert_called_once_with()
+        payloads = [sender.post_data.call_args.args[0]] + [
+            call.args[0] for call in sender.post_data_strict.call_args_list
+        ]
         self.assertEqual([payload["time"] for payload in payloads], ["1.25"] * 4)
         self.assertEqual(
             [payload["event"]["ci_test_id"] for payload in payloads],
@@ -193,10 +197,10 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
                 "check_connectivity",
                 "post_data",
                 "flush",
-                "post_data",
-                "post_data",
-                "post_data",
-                "flush",
+                "post_data_strict",
+                "post_data_strict",
+                "post_data_strict",
+                "flush_strict",
             ],
         )
 
@@ -215,6 +219,8 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
         sender.check_connectivity.assert_called_once_with()
         sender.post_data.assert_not_called()
         sender.flush.assert_not_called()
+        sender.post_data_strict.assert_not_called()
+        sender.flush_strict.assert_not_called()
 
 
 @unittest.skipUnless(

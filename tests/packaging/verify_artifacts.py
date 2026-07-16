@@ -178,6 +178,8 @@ def verify_wheel(path, expected_version):
         fail("{}: unexpected runtime modules: {!r}".format(path, runtime_modules))
     if any(PurePosixPath(name).parts[0] == "tests" for name in names):
         fail("{}: tests must not be installed by the wheel".format(path))
+    if any(PurePosixPath(name).parts[0] == "examples" for name in names):
+        fail("{}: examples must not be installed by the wheel".format(path))
 
 
 def verify_sdist(path, expected_version):
@@ -202,6 +204,8 @@ def verify_sdist(path, expected_version):
     required = {
         "{}/LICENSE".format(root),
         "{}/README.md".format(root),
+        "{}/examples/README.md".format(root),
+        "{}/examples/example.py".format(root),
         "{}/pyproject.toml".format(root),
         "{}/setup.cfg".format(root),
         "{}/setup.py".format(root),

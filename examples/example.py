@@ -1,4 +1,4 @@
-"""main.py
+"""example.py
 Demo use of HEC Class
 """
 
@@ -58,6 +58,6 @@ log.info(
 )
 
 # This Example:
-# time python3 main.py
-# python3 main.py  11.78s user 0.35s system 58% cpu 20.806 total
+# time python3 examples/example.py
+# python3 examples/example.py  11.78s user 0.35s system 58% cpu 20.806 total
 # Completed Data Post: Post Max Size:10000 Max Payload Size:75 Ratio to Event Size: 267.0
