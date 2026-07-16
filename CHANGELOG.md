@@ -11,6 +11,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 - Linux runtime coverage for Python 3.10, 3.11, and 3.12, alongside the
   cross-platform Python 3.9 and 3.13 compatibility anchors.
+- A protected live integration assertion that sends three JSON events in one
+  batch and uses querysplunk to prove Splunk indexed all three separately.
 
 ### Changed
 
@@ -28,6 +30,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Corrected JSON-mode HEC batching to concatenate complete event envelopes as
+  required by Splunk's wire protocol instead of wrapping each batch in a JSON
+  array. Public methods, queueing, compression, and raw-mode framing are
+  unchanged.
 - Made `str(sender)` side-effect-free. It preserves the existing representation
   fields but reports `Reachable=NotChecked`; callers that need a live result
   must invoke `check_connectivity()` explicitly.

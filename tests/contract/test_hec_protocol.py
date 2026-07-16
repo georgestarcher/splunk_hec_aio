@@ -127,7 +127,7 @@ class TestHecProtocol(unittest.TestCase):
         self.assertEqual(len(self.retry_client.requests), 1)
         return self.retry_client.requests[0]
 
-    def test_json_transport_records_exact_v2_gzip_body_and_metadata(self):
+    def test_json_transport_uses_exact_event_body_and_metadata(self):
         event = {
             "time": "1.25",
             "host": "event-host",
@@ -153,8 +153,8 @@ class TestHecProtocol(unittest.TestCase):
             url,
             "https://splunk.example:8088/services/collector/event",
         )
-        self.assertEqual(decompressed, json.dumps([event]))
-        self.assertEqual(json.loads(decompressed), [event])
+        self.assertEqual(decompressed, json.dumps(event))
+        self.assertEqual(json.loads(decompressed), event)
         self.assertEqual(request["verify_ssl"], True)
         self.assertIsNone(request["params"])
         self.assertEqual(
@@ -173,17 +173,16 @@ class TestHecProtocol(unittest.TestCase):
         self.assertTrue(self.session.exited)
         self.assertTrue(self.retry_client.closed)
 
-    def test_json_endpoint_records_released_array_framing_gap(self):
-        # Issue #17 owns replacing this released JSON-array framing.
+    def test_json_endpoint_concatenates_complete_event_objects(self):
         events = [{"event": "first"}, {"event": "second"}]
 
         self._post_batch_through_transport(events)
 
         _, request = self._only_request()
         decompressed = gzip.decompress(request["data"]).decode("utf-8")
-        intended_framing = "".join(json.dumps(event) for event in events)
-        self.assertNotEqual(decompressed, intended_framing)
-        self.assertEqual(decompressed, json.dumps(events))
+        expected_framing = "".join(json.dumps(event) for event in events)
+        self.assertEqual(decompressed, expected_framing)
+        self.assertNotEqual(decompressed, json.dumps(events))
 
     def test_json_payload_shapes_and_unicode_round_trip_deterministically(self):
         events = [
@@ -205,8 +204,10 @@ class TestHecProtocol(unittest.TestCase):
 
         _, request = self._only_request()
         decompressed = gzip.decompress(request["data"]).decode("utf-8")
-        self.assertEqual(decompressed, json.dumps(events))
-        self.assertEqual(json.loads(decompressed), events)
+        self.assertEqual(
+            decompressed,
+            "".join(json.dumps(event) for event in events),
+        )
 
     def test_raw_transport_uses_exact_concatenated_body_and_url_parameters(self):
         self.sender.set_payload_json_format(False)

@@ -204,8 +204,8 @@ def match_count(result_path: Path) -> int:
     return count
 
 
-def send_event(environ: Mapping[str, str]) -> None:
-    """Send one uniquely identifiable event through the released public class."""
+def send_batch(environ: Mapping[str, str]) -> None:
+    """Send one uniquely identifiable three-event batch through the public class."""
 
     config = load_hec_config(environ)
     logging.basicConfig(level=logging.ERROR)
@@ -217,15 +217,17 @@ def send_event(environ: Mapping[str, str]) -> None:
     sender.set_source(config.source)
     sender.set_sourcetype(config.sourcetype)
 
-    event = {
-        "ci_test_id": config.test_id,
-        "message": "splunk_hec_aio live integration smoke test",
-        "repository": environ.get("GITHUB_REPOSITORY", ""),
-        "run_id": environ.get("GITHUB_RUN_ID", ""),
-        "run_attempt": environ.get("GITHUB_RUN_ATTEMPT", ""),
-        "commit": environ.get("GITHUB_SHA", ""),
-    }
-    sender.post_data({"time": str(round(time.time(), 3)), "event": event})
+    for batch_position in range(1, 4):
+        event = {
+            "ci_test_id": config.test_id,
+            "batch_position": batch_position,
+            "message": "splunk_hec_aio live integration batch test",
+            "repository": environ.get("GITHUB_REPOSITORY", ""),
+            "run_id": environ.get("GITHUB_RUN_ID", ""),
+            "run_attempt": environ.get("GITHUB_RUN_ATTEMPT", ""),
+            "commit": environ.get("GITHUB_SHA", ""),
+        }
+        sender.post_data({"time": str(round(time.time(), 3)), "event": event})
     sender.flush()
 
 
@@ -233,7 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("preflight", help="validate protected environment values")
-    subparsers.add_parser("send", help="send one live HEC smoke event")
+    subparsers.add_parser("send", help="send one live HEC smoke batch")
     render = subparsers.add_parser("render-query", help="render the search YAML")
     render.add_argument("template", type=Path)
     render.add_argument("output", type=Path)
@@ -249,8 +251,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             validate_preflight(os.environ)
             print("Live integration configuration validated.")
         elif args.command == "send":
-            send_event(os.environ)
-            print("HEC send attempt completed; awaiting search verification.")
+            send_batch(os.environ)
+            print("HEC batch send completed; awaiting search verification.")
         elif args.command == "render-query":
             render_query(args.template, args.output, os.environ)
             print("Live search configuration rendered.")

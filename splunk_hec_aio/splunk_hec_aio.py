@@ -246,7 +246,8 @@ class SplunkHecAio:
 
                     if self._payload_mode_json:
                          # If True payload is expected to be form application/json
-                        payload_string = gzip.compress(json.dumps(payload).encode('utf-8'))
+                        payload_batch = "".join(json.dumps(event) for event in payload)
+                        payload_string = gzip.compress(payload_batch.encode('utf-8'))
                         if payload_string:
                             async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
                                 await response.text()               
