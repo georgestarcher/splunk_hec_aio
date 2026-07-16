@@ -355,13 +355,31 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertEqual(self.sender.post_data_strict(first), tuple())
         with patch.object(
             self.sender,
-            "_post_batch_strict",
-            new=AsyncMock(side_effect=aggregate),
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=failure),
         ):
-            with self.assertRaises(HecBatchDeliveryError):
+            with self.assertRaises(HecBatchDeliveryError) as raised:
                 self.sender.post_data_strict(second)
 
+        self.assertEqual(raised.exception.failures, aggregate.failures)
         self.assertFalse(self.sender._strict_delivery)
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.payload_queue.elements, [second])
+
+    def test_strict_auto_flush_retains_triggering_payload_once_after_success(self):
+        self.sender.set_pop_empty_fields(False)
+        self.sender.set_post_max_byte_size(4000)
+        self.sender.set_concurrent_post_limit(1)
+        first = {"event": "a" * 2200}
+        second = {"event": "b" * 2200}
+
+        self.assertEqual(self.sender.post_data_strict(first), tuple())
+        deliveries = self.sender.post_data_strict(second)
+
+        self.assertEqual(len(deliveries), 1)
+        self.assertEqual(deliveries[0].event_count, 1)
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertEqual(self.sender.payload_queue.elements, [second])
 
     def test_strict_post_rejects_wrong_payload_type_without_silent_skip(self):
         with self.assertRaisesRegex(

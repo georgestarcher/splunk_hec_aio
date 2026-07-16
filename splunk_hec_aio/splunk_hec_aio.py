@@ -1312,6 +1312,7 @@ class SplunkHecAio:
         """
 
         strict_results = tuple()
+        payload_queued = False
 
         # Safety check to ensure payload form matches the intended operation mode
         if self._payload_mode_json and type(payload) is not dict:
@@ -1359,12 +1360,17 @@ class SplunkHecAio:
             if self.post_queue.size >= self.get_concurrent_post_limit():
                 self.log.debug("Auto Flush: Posting the Batch.")
                 if self._strict_delivery:
+                    # Retain the payload that triggered this flush before
+                    # strict delivery can propagate a previous batch failure.
+                    self.payload_queue.enqueue(payload)
+                    payload_queued = True
                     strict_results = asyncio.run(self._post_batch_strict())
                 else:
                     asyncio.run(self._post_batch())
 
         # Add new payload to batch accumulation.
-        self.payload_queue.enqueue(payload)
+        if not payload_queued:
+            self.payload_queue.enqueue(payload)
 
         if self._strict_delivery:
             return strict_results
