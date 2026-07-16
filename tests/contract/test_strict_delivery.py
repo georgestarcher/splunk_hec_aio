@@ -371,6 +371,53 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertEqual(len(raised.exception.failures), 2)
         self.assertEqual(self.sender.post_queue.elements, [batches[0], batches[2]])
 
+    def test_replayed_retryable_batches_respect_concurrency_limit(self):
+        self.sender.set_concurrent_post_limit(1)
+        batches = [
+            [{"event": "first-retry"}],
+            [{"event": "second-retry"}],
+        ]
+        for batch in batches:
+            self.sender.post_queue.enqueue(batch)
+
+        async def fail_retryably(url, batch, batch_index):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            raise HecTransportError(batch_index, len(batch), "timeout", True)
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=fail_retryably),
+        ):
+            with self.assertRaises(HecBatchDeliveryError):
+                asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual(self.sender.post_queue.elements, batches)
+        active = 0
+        max_active = 0
+
+        async def deliver(url, batch, batch_index):
+            nonlocal active, max_active
+            self.assertEqual(url, self.sender.splunk_post_url)
+            active += 1
+            max_active = max(max_active, active)
+            try:
+                await asyncio.sleep(0)
+                return result(batch_index, len(batch))
+            finally:
+                active -= 1
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=deliver),
+        ):
+            deliveries = asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual([item.batch_index for item in deliveries], [0, 1])
+        self.assertEqual(max_active, 1)
+        self.assertTrue(self.sender.post_queue.is_empty)
+
     def test_strict_cancellation_preserves_retryable_batches_and_cancellation(self):
         batches = [
             [{"event": "cancelled"}],

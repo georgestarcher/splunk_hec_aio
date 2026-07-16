@@ -499,73 +499,88 @@ class SplunkHecAio:
                 await retry_client.close()
 
     async def _post_batch_strict(self):
-        """Post all completed batches and report every strict outcome."""
+        """Post completed batches within the configured concurrency limit."""
 
         if self.post_queue.is_empty:
             return tuple()
 
         batches = [self.post_queue.dequeue() for _ in range(self.post_queue.size)]
-        tasks = [
-            asyncio.create_task(
-                self._http_post_strict_task(
-                    self.splunk_post_url,
-                    batch,
-                    batch_index,
-                )
-            )
-            for batch_index,batch in enumerate(batches)
-        ]
-        try:
-            outcomes = await asyncio.gather(*tasks,return_exceptions=True)
-        except asyncio.CancelledError:
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            cancelled_outcomes = await asyncio.gather(
-                *tasks,
-                return_exceptions=True,
-            )
-            for batch_index,outcome in enumerate(cancelled_outcomes):
-                if isinstance(outcome, HecDeliveryResult):
-                    continue
-                if isinstance(outcome, HecDeliveryError) and not (
-                    _strict_failure_is_retryable(outcome)
-                ):
-                    continue
-                self.post_queue.enqueue(batches[batch_index])
-            raise
+        max_concurrency = self.get_concurrent_post_limit()
         results = []
         failures = []
-        retryable_batches = []
+        retryable_batch_indexes = set()
         propagated_outcome = None
 
-        for batch_index,outcome in enumerate(outcomes):
-            if isinstance(outcome, asyncio.CancelledError):
-                retryable_batches.append(batches[batch_index])
-                if propagated_outcome is None:
-                    propagated_outcome = outcome
-            elif isinstance(outcome, HecDeliveryResult):
-                results.append(outcome)
-            elif isinstance(outcome, HecDeliveryError):
-                failures.append(outcome)
-                if _strict_failure_is_retryable(outcome):
-                    retryable_batches.append(batches[batch_index])
-            elif isinstance(outcome, Exception):
-                failures.append(
-                    HecTransportError(
+        for wave_start in range(0,len(batches),max_concurrency):
+            wave_stop = min(wave_start + max_concurrency,len(batches))
+            wave_indexes = range(wave_start,wave_stop)
+            tasks = [
+                asyncio.create_task(
+                    self._http_post_strict_task(
+                        self.splunk_post_url,
+                        batches[batch_index],
                         batch_index,
-                        len(batches[batch_index]),
-                        "transport failed",
-                        False,
                     )
                 )
-            elif isinstance(outcome, BaseException):
-                retryable_batches.append(batches[batch_index])
-                if propagated_outcome is None:
-                    propagated_outcome = outcome
+                for batch_index in wave_indexes
+            ]
+            try:
+                outcomes = await asyncio.gather(*tasks,return_exceptions=True)
+            except asyncio.CancelledError:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                cancelled_outcomes = await asyncio.gather(
+                    *tasks,
+                    return_exceptions=True,
+                )
+                for batch_index,outcome in zip(
+                    wave_indexes,
+                    cancelled_outcomes,
+                ):
+                    if isinstance(outcome, HecDeliveryResult):
+                        continue
+                    if isinstance(outcome, HecDeliveryError) and not (
+                        _strict_failure_is_retryable(outcome)
+                    ):
+                        continue
+                    retryable_batch_indexes.add(batch_index)
+                retryable_batch_indexes.update(range(wave_stop,len(batches)))
+                for batch_index in sorted(retryable_batch_indexes):
+                    self.post_queue.enqueue(batches[batch_index])
+                raise
 
-        for batch in retryable_batches:
-            self.post_queue.enqueue(batch)
+            for batch_index,outcome in zip(wave_indexes,outcomes):
+                if isinstance(outcome, asyncio.CancelledError):
+                    retryable_batch_indexes.add(batch_index)
+                    if propagated_outcome is None:
+                        propagated_outcome = outcome
+                elif isinstance(outcome, HecDeliveryResult):
+                    results.append(outcome)
+                elif isinstance(outcome, HecDeliveryError):
+                    failures.append(outcome)
+                    if _strict_failure_is_retryable(outcome):
+                        retryable_batch_indexes.add(batch_index)
+                elif isinstance(outcome, Exception):
+                    failures.append(
+                        HecTransportError(
+                            batch_index,
+                            len(batches[batch_index]),
+                            "transport failed",
+                            False,
+                        )
+                    )
+                elif isinstance(outcome, BaseException):
+                    retryable_batch_indexes.add(batch_index)
+                    if propagated_outcome is None:
+                        propagated_outcome = outcome
+
+            if propagated_outcome is not None:
+                retryable_batch_indexes.update(range(wave_stop,len(batches)))
+                break
+
+        for batch_index in sorted(retryable_batch_indexes):
+            self.post_queue.enqueue(batches[batch_index])
 
         if propagated_outcome is not None:
             raise propagated_outcome
