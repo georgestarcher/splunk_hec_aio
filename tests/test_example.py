@@ -94,6 +94,7 @@ class TestMaintainedExample(unittest.TestCase):
         for path in EXAMPLES.values():
             with self.subTest(example=path.name):
                 self.assertIn("[`{}`]({})".format(path.name, path.name), readme)
+                self.assertIn("python -m examples.{}".format(path.stem), readme)
 
         self.assertIn("SPLUNK_HEC_TOKEN", readme)
         self.assertIn("SPLUNK_HEC_ENABLE_ACK_EXAMPLE", readme)

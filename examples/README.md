@@ -21,13 +21,14 @@ export SPLUNK_HEC_INDEX="test"
 export SPLUNK_HEC_SOURCETYPE="splunk_hec_aio"
 ```
 
-Then run a focused example from the repository root:
+Then run a focused example from the repository root with module-style
+invocation so the checkout's `splunk_hec_aio` package remains importable:
 
 ```shell
-python examples/example.py
-python examples/strict_delivery.py
-python examples/async_strict_delivery.py
-python examples/raw_delivery.py
+python -m examples.example
+python -m examples.strict_delivery
+python -m examples.async_strict_delivery
+python -m examples.raw_delivery
 ```
 
 Keep the token outside source code, use a test index and non-production token,
@@ -46,7 +47,7 @@ export SPLUNK_HEC_PORT="8088"
 export SPLUNK_HEC_ENABLE_ACK_EXAMPLE="yes"
 export SPLUNK_HEC_ACK_TIMEOUT="300"
 export SPLUNK_HEC_ACK_POLL_INTERVAL="10"
-python examples/indexer_acknowledgment.py
+python -m examples.indexer_acknowledgment
 ```
 
 See the
