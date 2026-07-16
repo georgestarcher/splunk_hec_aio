@@ -398,6 +398,48 @@ class TestStrictDelivery(unittest.TestCase):
 
         self.assertEqual(self.sender.post_queue.elements, batches[:2])
 
+    def test_external_cancellation_preserves_only_unknown_and_retryable_batches(self):
+        batches = [
+            [{"event": "accepted"}],
+            [{"event": "retryable"}],
+            [{"event": "unfinished"}],
+        ]
+        for batch in batches:
+            self.sender.post_queue.enqueue(batch)
+
+        async def cancel_delivery():
+            unfinished_started = asyncio.Event()
+
+            async def deliver(url, batch, batch_index):
+                self.assertEqual(url, self.sender.splunk_post_url)
+                if batch_index == 0:
+                    return result(batch_index, len(batch))
+                if batch_index == 1:
+                    raise HecTransportError(
+                        batch_index,
+                        len(batch),
+                        "timeout",
+                        True,
+                    )
+                unfinished_started.set()
+                await asyncio.Future()
+
+            with patch.object(
+                self.sender,
+                "_http_post_strict_task",
+                new=AsyncMock(side_effect=deliver),
+            ):
+                delivery = asyncio.create_task(self.sender._post_batch_strict())
+                await unfinished_started.wait()
+                await asyncio.sleep(0)
+                delivery.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await delivery
+
+        asyncio.run(cancel_delivery())
+
+        self.assertEqual(self.sender.post_queue.elements, batches[1:])
+
     def test_strict_auto_flush_propagates_failure(self):
         self.sender.set_pop_empty_fields(False)
         self.sender.set_post_max_byte_size(4000)

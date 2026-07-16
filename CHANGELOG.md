@@ -13,8 +13,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   structured per-batch HEC results, bounded and token-redacted response
   context, explicit connect/read/total timeouts, deterministic retryability,
   propagated aggregate failures, ordered retention of retryable failed batches,
-  and cancellation propagation with queued retention. Existing `post_data()`
-  and `flush()` defaults remain unchanged.
+  and cancellation propagation with queued retention for cancelled or unfinished
+  batches. Existing `post_data()` and `flush()` defaults remain unchanged.
 - Linux runtime coverage for Python 3.10, 3.11, and 3.12, alongside the
   cross-platform Python 3.9 and 3.13 compatibility anchors.
 - A protected live integration assertion that sends one standalone JSON event

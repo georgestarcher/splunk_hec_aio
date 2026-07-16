@@ -100,6 +100,14 @@ def _new_hec_channel():
     return str(uuid.uuid4())
 
 
+def _strict_failure_is_retryable(failure):
+    """Return whether a strict delivery failure should remain queued."""
+
+    return (
+        isinstance(failure, HecResponseError) and failure.result.retryable
+    ) or (isinstance(failure, HecTransportError) and failure.retryable)
+
+
 # Class for Queue objects.
 class _SplunkQueue:
     """
@@ -507,7 +515,25 @@ class SplunkHecAio:
             )
             for batch_index,batch in enumerate(batches)
         ]
-        outcomes = await asyncio.gather(*tasks,return_exceptions=True)
+        try:
+            outcomes = await asyncio.gather(*tasks,return_exceptions=True)
+        except asyncio.CancelledError:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            cancelled_outcomes = await asyncio.gather(
+                *tasks,
+                return_exceptions=True,
+            )
+            for batch_index,outcome in enumerate(cancelled_outcomes):
+                if isinstance(outcome, HecDeliveryResult):
+                    continue
+                if isinstance(outcome, HecDeliveryError) and not (
+                    _strict_failure_is_retryable(outcome)
+                ):
+                    continue
+                self.post_queue.enqueue(batches[batch_index])
+            raise
         results = []
         failures = []
         retryable_batches = []
@@ -522,13 +548,7 @@ class SplunkHecAio:
                 results.append(outcome)
             elif isinstance(outcome, HecDeliveryError):
                 failures.append(outcome)
-                if (
-                    isinstance(outcome, HecResponseError)
-                    and outcome.result.retryable
-                ) or (
-                    isinstance(outcome, HecTransportError)
-                    and outcome.retryable
-                ):
+                if _strict_failure_is_retryable(outcome):
                     retryable_batches.append(batches[batch_index])
             elif isinstance(outcome, Exception):
                 failures.append(
