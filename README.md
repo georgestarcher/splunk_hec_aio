@@ -162,6 +162,9 @@ Splunk's HEC batch format by concatenating complete event objects without
 wrapping them in a JSON array. See Splunk's
 [event-formatting and batching documentation](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.2/get-data-with-http-event-collector/format-events-for-http-event-collector).
 
+HEC request channels use random UUIDv4 identifiers. Raw-mode requests include
+the required channel query parameter as well as the request-channel header.
+
 ### 400 Bad Request
 
 If Splunk returns `400 Bad Request` while an index is configured, confirm that

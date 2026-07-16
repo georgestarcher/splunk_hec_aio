@@ -137,13 +137,15 @@ class TestHecProtocol(unittest.TestCase):
             "fields": {"region": "us-central"},
             "event": {"message": "hello", "count": 2},
         }
-        channel = uuid.UUID("00000000-0000-0000-0000-000000000010")
+        channel = uuid.UUID("00000000-0000-4000-8000-000000000010")
 
         with patch(
-            "splunk_hec_aio.splunk_hec_aio.uuid.uuid1",
+            "splunk_hec_aio.splunk_hec_aio.uuid.uuid4",
             return_value=channel,
-        ):
+        ) as uuid4:
             result = self._post_batch_through_transport([event])
+
+        uuid4.assert_called_once_with()
 
         url, request = self._only_request()
         decompressed = gzip.decompress(request["data"]).decode("utf-8")
@@ -216,14 +218,16 @@ class TestHecProtocol(unittest.TestCase):
         self.sender.set_sourcetype("example:raw")
         self.sender.set_source("protocol-test")
         self.sender.set_host("source-host")
-        channel = uuid.UUID("00000000-0000-0000-0000-000000000011")
+        channel = uuid.UUID("00000000-0000-4000-8000-000000000011")
         payloads = ["first line\n", "second line\n"]
 
         with patch(
-            "splunk_hec_aio.splunk_hec_aio.uuid.uuid1",
+            "splunk_hec_aio.splunk_hec_aio.uuid.uuid4",
             return_value=channel,
-        ):
+        ) as uuid4:
             result = self._post_batch_through_transport(payloads)
+
+        self.assertEqual(uuid4.call_count, 2)
 
         url, request = self._only_request()
 
