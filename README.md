@@ -44,6 +44,12 @@ Do not install production applications from untagged `main`. For a local
 checkout used for development, follow the environment and test commands in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Building an application integration? Start with the maintained example for the
+selected delivery mode. AI coding assistants can use the self-contained
+[`consumer-agent integration guide`](docs/consumer-agent-guide.md) to choose a
+release, payload shape, delivery semantics, execution style, secret boundary,
+and search-backed verification plan without inventing deployment facts.
+
 ## Quick start
 
 Keep HEC tokens outside source code and load them from a secret manager or the
@@ -172,6 +178,7 @@ Linux.
 Additional project documentation:
 
 - [Changelog](CHANGELOG.md)
+- [Consumer-agent integration guide](docs/consumer-agent-guide.md)
 - [Examples](examples/README.md)
 - [License](LICENSE)
 - [Migrate from v2.1.2 to v3](docs/migrating-to-v3.md)
