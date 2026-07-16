@@ -169,6 +169,15 @@ wrapping them in a JSON array. See Splunk's
 HEC request channels use random UUIDv4 identifiers. Raw-mode requests include
 the required channel query parameter as well as the request-channel header.
 
+`check_connectivity()` performs an unauthenticated `GET` request to Splunk's
+`/services/collector/health` endpoint and returns `True` only when HEC reports
+HTTP 200 health. It checks whether the service can accept input; it does not
+validate the configured token, confirm event acceptance, or prove that an event
+was indexed. Delivery responses are a separate concern, and the protected live
+integration workflow proves indexing by searching for uniquely marked events.
+See Splunk's
+[HEC health endpoint documentation](https://help.splunk.com/en/splunk-enterprise/rest-api-reference/9.4/input-endpoints/input-endpoint-descriptions#servicescollectorhealth).
+
 ### 400 Bad Request
 
 If Splunk returns `400 Bad Request` while an index is configured, confirm that

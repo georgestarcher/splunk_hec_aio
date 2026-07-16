@@ -31,6 +31,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Changed `check_connectivity()` from an invalid event POST to an
+  unauthenticated GET of Splunk's documented HEC health endpoint, and clarified
+  that service health does not validate a token or prove indexed delivery.
 - Calculated JSON and raw batch thresholds from the exact uncompressed UTF-8
   request-body bytes, and stopped individually oversized events from creating
   empty queued batches.

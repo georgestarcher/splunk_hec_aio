@@ -112,7 +112,11 @@ class TestV2ReleasedBehavior(unittest.TestCase):
             self.sender.splunk_post_url,
             "https://splunk.example:8088/services/collector/event",
         )
-        self.assertEqual(self.sender.splunk_health_url, self.sender.splunk_post_url)
+        # Issue #17 intentionally replaces v2's invalid-event connectivity probe.
+        self.assertEqual(
+            self.sender.splunk_health_url,
+            "https://splunk.example:8088/services/collector/health",
+        )
         self.assertEqual(
             headers,
             {
