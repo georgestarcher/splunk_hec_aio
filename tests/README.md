@@ -18,6 +18,10 @@ approved change that replaces the behavior, and follow the rules in
 `unit/` covers deterministic implementation helpers. `contract/` executes the
 HTTP, gzip, batching, retry, and concurrency paths against controlled in-memory
 fakes. These tests inspect exact request bodies without opening a socket.
+`contract/test_async_api.py` also constructs and uses a sender inside an
+already-running event loop, proves the public async methods never start a
+nested loop, and checks compatible and strict queue, flush, failure, and
+cancellation behavior.
 
 Known specification gaps are expressed as narrow assertions of released v2
 behavior linked to the issue that owns the correction. The owning change must

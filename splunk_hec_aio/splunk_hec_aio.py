@@ -258,11 +258,16 @@ class SplunkHecAio:
 
     Functions:
         check_connectivity() returns:(bool) - returns whether HEC reports healthy
+        check_connectivity_async() - async health check for callers with a running event loop
         post_data(dict OR str) returns(none) - posts JSON dictionary OR plain/text to configured Splunk HTTP API Endpoint
             NOTE: payload type is controlled by set_payload_json_format listed below and should be setup at instantiation
+        post_data_async(dict OR str) - async-compatible equivalent of post_data()
         flush() - returns(none) - required call before exiting your code to flush any remaining batched data
+        flush_async() - async-compatible equivalent of flush()
         post_data_strict(dict OR str) - queues data with strict auto-flush failures enabled
+        post_data_strict_async(dict OR str) - async-compatible strict queue method
         flush_strict() - returns per-batch delivery results or raises HecBatchDeliveryError
+        flush_strict_async() - async-compatible strict flush method
         set_pop_empty_fields(bool) - returns(none) - accepts bool value to control if empty/null fields are removed. Default is True.
         get_pop_empty_fields() - returns(bool) - displays current value controlling removing empty/null fields
         set_payload_json_format(bool) - returns(none) - accepts bool value to control payload format is application/json (True) or text/plain (False). Default is True.
@@ -1258,6 +1263,19 @@ class SplunkHecAio:
 
         return is_available
 
+    async def check_connectivity_async(self):
+        """Return HEC health without starting a new event loop.
+
+        Returns:
+            bool: True only when the health endpoint returns HTTP 200.
+
+        Notes:
+            Use this method from applications that already run an event loop.
+            It has the same health-only semantics as check_connectivity().
+        """
+
+        return await self._check_connectivity()
+
     async def _check_connectivity(self):
         """Private ASYNC function to check documented HEC service health.
 
@@ -1350,6 +1368,29 @@ class SplunkHecAio:
 
         return
 
+    async def flush_async(self):
+        """Flush compatible queued payloads from an existing event loop.
+
+        This additive async entry point preserves flush() return and logging
+        behavior while awaiting the existing async batch implementation.
+        """
+
+        if not self.payload_queue.is_empty:
+            self.log.debug("Final Flush: Posting %s",str(self.payload_queue.size))
+            try:
+                self.post_queue.enqueue(
+                    [
+                        self.payload_queue.dequeue()
+                        for _ in range(self.payload_queue.size)
+                    ]
+                )
+                if not self.post_queue.is_empty:
+                    await self._post_batch()
+            except Exception as e:
+                self.log.exception(e)
+
+        return
+
     def flush_strict(self):
         """Flush queued payloads with structured results and propagated failures.
 
@@ -1374,6 +1415,26 @@ class SplunkHecAio:
         if self.post_queue.is_empty:
             return tuple()
         return asyncio.run(self._post_batch_strict())
+
+    async def flush_strict_async(self):
+        """Flush strict queued payloads from an existing event loop.
+
+        Returns:
+            tuple: One HecDeliveryResult for every accepted batch request.
+        Raises:
+            HecBatchDeliveryError: One or more batch requests failed.
+        """
+
+        if not self.payload_queue.is_empty:
+            self.post_queue.enqueue(
+                [
+                    self.payload_queue.dequeue()
+                    for _ in range(self.payload_queue.size)
+                ]
+            )
+        if self.post_queue.is_empty:
+            return tuple()
+        return await self._post_batch_strict()
 
     def post_data_strict(self,payload):
         """Queue one payload and propagate failures from any automatic flush.
@@ -1404,6 +1465,109 @@ class SplunkHecAio:
             return tuple()
         return results
 
+    async def post_data_strict_async(self,payload):
+        """Queue one strict payload without starting a new event loop.
+
+        Returns:
+            tuple: Results from an automatic flush, or an empty tuple when no
+                HTTP request was needed yet.
+        Raises:
+            TypeError: The payload does not match the configured payload mode.
+            HecBatchDeliveryError: An automatic strict batch flush failed.
+        """
+
+        prepared = self._prepare_payload_for_queue(payload,strict=True)
+        payload,should_flush = prepared
+
+        if should_flush:
+            # Retain the triggering payload before strict delivery can
+            # propagate a previous batch failure or cancellation.
+            self.payload_queue.enqueue(payload)
+            return await self._post_batch_strict()
+
+        self.payload_queue.enqueue(payload)
+        return tuple()
+
+    def _prepare_payload_for_queue(self,payload,strict):
+        """Validate and prepare one payload, returning whether to auto-flush."""
+
+        if self._payload_mode_json and type(payload) is not dict:
+            if strict:
+                raise TypeError("Strict JSON payloads must be dictionaries.")
+            self.log.warning("Skipping Payload: set_payload_json_format:%s expected type dict received type %s",self.get_payload_json_format(),str(type(payload)))
+            return None
+        if not self._payload_mode_json and type(payload) is not str:
+            if strict:
+                raise TypeError("Strict raw payloads must be strings.")
+            self.log.warning("Skipping Payload: set_payload_json_format:%s expected type str received type %s",self.get_payload_json_format(),str(type(payload)))
+            return None
+
+        # Work with our own top-level dictionary so configured metadata never
+        # mutates a caller-owned payload.
+        if self._payload_mode_json:
+            payload = payload.copy()
+            if self._pop_empty_fields:
+                payload = {
+                    key:value
+                    for key,value in payload.items()
+                    if not _is_empty_json_value(value)
+                }
+        json_format = self.get_payload_json_format()
+
+        if json_format and self._host:
+            payload.update({"host":self._host})
+        if json_format and self._source:
+            payload.update({"source":self._source})
+        if json_format and self._sourcetype:
+            payload.update({"sourcetype":self._sourcetype})
+        if json_format and self._index:
+            payload.update({"index":self._index})
+
+        payload_length = self._payload_wire_size(payload)
+        queued_length = sum(
+            self._payload_wire_size(queued_payload)
+            for queued_payload in self.payload_queue.elements
+        )
+
+        should_flush = False
+        if (
+            not self.payload_queue.is_empty
+            and queued_length + payload_length > self.get_post_max_byte_size()
+        ):
+            self.post_queue.enqueue(
+                [
+                    self.payload_queue.dequeue()
+                    for _ in range(self.payload_queue.size)
+                ]
+            )
+            if self.post_queue.size >= self.get_concurrent_post_limit():
+                self.log.debug("Auto Flush: Posting the Batch.")
+                should_flush = True
+
+        return payload,should_flush
+
+    async def post_data_async(self,payload):
+        """Queue one compatible payload from an existing event loop.
+
+        The method preserves post_data() validation, logging, and None return
+        behavior. Any automatic batch send is awaited directly.
+        """
+
+        prepared = self._prepare_payload_for_queue(payload,strict=False)
+        if prepared is None:
+            return
+        payload,should_flush = prepared
+
+        if should_flush:
+            try:
+                await self._post_batch()
+            finally:
+                self.payload_queue.enqueue(payload)
+        else:
+            self.payload_queue.enqueue(payload)
+
+        return
+
     def post_data(self,payload):
         """Places the JSON/text payload into a batch queue for optimal HTTP Posting to Splunk.
 
@@ -1420,60 +1584,23 @@ class SplunkHecAio:
 
         strict_results = tuple()
         payload_queued = False
-
-        # Safety check to ensure payload form matches the intended operation mode
-        if self._payload_mode_json and type(payload) is not dict:
-            self.log.warning("Skipping Payload: set_payload_json_format:%s expected type dict received type %s",self.get_payload_json_format(),str(type(payload)))
-            return
-        elif not self._payload_mode_json and type(payload) is not str:
-            self.log.warning("Skipping Payload: set_payload_json_format:%s expected type str received type %s",self.get_payload_json_format(),str(type(payload)))
-            return
-            
-        # Work with our own top-level dictionary so configured metadata never
-        # mutates a caller-owned payload.
-        if self._payload_mode_json:
-            payload = payload.copy()
-            if self._pop_empty_fields:
-                payload = {k:v for k,v in payload.items() if not _is_empty_json_value(v)}
-        json_format = self.get_payload_json_format()
-
-        if json_format and self._host:
-            payload.update({"host":self._host})
-        if json_format and self._source:
-            payload.update({"source":self._source})
-        if json_format and self._sourcetype:
-            payload.update({"sourcetype":self._sourcetype})
-        if json_format and self._index:
-            payload.update({"index":self._index})
-
-        # Measure the exact uncompressed UTF-8 bytes used by the request body.
-        payload_length = self._payload_wire_size(payload)
-        queued_length = sum(
-            self._payload_wire_size(queued_payload)
-            for queued_payload in self.payload_queue.elements
+        prepared = self._prepare_payload_for_queue(
+            payload,
+            strict=self._strict_delivery,
         )
+        if prepared is None:
+            return
+        payload,should_flush = prepared
 
-        # Move only a non-empty completed batch when the next payload would
-        # exceed the limit. An individually oversized event remains intact and
-        # is sent alone because HEC events cannot be split safely.
-        if (
-            not self.payload_queue.is_empty
-            and queued_length + payload_length > self.get_post_max_byte_size()
-        ):
-            # Move batch to post queue.
-            self.post_queue.enqueue([self.payload_queue.dequeue() for x in range(self.payload_queue.size)])
-
-            # If self.concurrent_post_limit batches have accumulated post flush them to Splunk.
-            if self.post_queue.size >= self.get_concurrent_post_limit():
-                self.log.debug("Auto Flush: Posting the Batch.")
-                if self._strict_delivery:
-                    # Retain the payload that triggered this flush before
-                    # strict delivery can propagate a previous batch failure.
-                    self.payload_queue.enqueue(payload)
-                    payload_queued = True
-                    strict_results = asyncio.run(self._post_batch_strict())
-                else:
-                    asyncio.run(self._post_batch())
+        if should_flush:
+            if self._strict_delivery:
+                # Retain the payload that triggered this flush before strict
+                # delivery can propagate a previous batch failure.
+                self.payload_queue.enqueue(payload)
+                payload_queued = True
+                strict_results = asyncio.run(self._post_batch_strict())
+            else:
+                asyncio.run(self._post_batch())
 
         # Add new payload to batch accumulation.
         if not payload_queued:
