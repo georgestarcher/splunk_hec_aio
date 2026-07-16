@@ -94,11 +94,14 @@ sender = SplunkHecAio(
 )
 sender.set_port(int(os.environ.get("SPLUNK_HEC_PORT", "443")))
 sender.set_sourcetype(os.environ.get("SPLUNK_HEC_SOURCETYPE", "splunk_hec_aio"))
-if index := os.environ.get("SPLUNK_HEC_INDEX"):
+index = os.environ.get("SPLUNK_HEC_INDEX")
+if index:
     sender.set_index(index)
-if source := os.environ.get("SPLUNK_HEC_SOURCE"):
+source = os.environ.get("SPLUNK_HEC_SOURCE")
+if source:
     sender.set_source(source)
-if event_host := os.environ.get("SPLUNK_EVENT_HOST"):
+event_host = os.environ.get("SPLUNK_EVENT_HOST")
+if event_host:
     sender.set_host(event_host)
 ```
 

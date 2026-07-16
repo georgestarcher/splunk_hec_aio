@@ -80,6 +80,18 @@ class TestConsumerAgentDocumentation(unittest.TestCase):
             with self.subTest(block=index):
                 ast.parse(block, filename="{}:block-{}".format(GUIDE_PATH, index))
 
+    def test_shared_sender_setup_parses_as_python_3_7(self):
+        blocks = re.findall(r"```python\n(.*?)```", self.guide, re.DOTALL)
+        sender_block = next(
+            block for block in blocks if "sender = SplunkHecAio" in block
+        )
+
+        ast.parse(
+            sender_block,
+            filename="{}:shared-sender".format(GUIDE_PATH),
+            feature_version=7,
+        )
+
     def test_maintainer_contract_keeps_live_work_protected(self):
         required = (
             "deterministic, secret-free, and isolated from public networks",
