@@ -81,8 +81,8 @@ class TestV2PublicApi(unittest.TestCase):
             issubclass(module.HecAcknowledgmentError, module.HecDeliveryError)
         )
 
-    def test_v3_development_version_is_exposed_from_the_runtime_module(self):
-        self.assertEqual(module.__version__, "3.0.0.dev0")
+    def test_v3_stable_version_is_exposed_from_the_runtime_module(self):
+        self.assertEqual(module.__version__, "3.0.0")
 
 
 if __name__ == "__main__":

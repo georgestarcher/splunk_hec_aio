@@ -2,8 +2,8 @@
 
 `splunk_hec_aio` has active users. The immutable v2.1.2 release preserves the
 v2.1.1 behavior captured by the repository's compatibility baseline. The v3
-development line keeps that evidence intact while each approved behavior
-change is reviewed separately.
+release keeps that evidence intact and records each approved behavior change
+separately.
 
 The characterization tests under `tests/` describe that baseline. They are
 deliberately separate from tests that specify corrected or new behavior. A
@@ -31,6 +31,13 @@ V2.1.2 retains its historical `python_requires >3.5` metadata. V3 declares
 Python 3.13 is the primary modern Splunk-aligned target. Current-Python lint,
 type, audit, and build tools remain separate from the runtime compatibility
 suite.
+
+Splunk's [Python compatibility documentation](https://dev.splunk.com/enterprise/docs/developapps/python-compatibility)
+and [interpreter-selection guidance](https://dev.splunk.com/enterprise/docs/developapps/python-compatibility/specify-python-compatibility)
+describe Python 3.9 and 3.13 together for current Splunk releases. Splunk
+Enterprise 10.4 deprecates Python 3.9 but has not removed it, so v3 retains 3.9
+as a tested floor while directing new deployments toward 3.13. Revisit the
+floor at a future major-version boundary after Splunk removes 3.9.
 
 ## Change classifications
 
@@ -114,8 +121,9 @@ environment, and runs the nested-import and v2 public-API snapshot from outside
 the checkout on Python 3.9 and 3.13. Runtime CI also exercises Python 3.10,
 3.11, and 3.12 on Linux, plus Python 3.9 and 3.13 on macOS and Windows.
 
-Version 2.1.2 remains the final planned legacy-compatible v2 release. V3 begins
-at `3.0.0.dev0` with a minimum of Python 3.9. Raising that floor is the only
-intentional compatibility break in the foundation change; constructor,
-string, async, transport, endpoint, batching, retry, logging, and failure
-behavior remain unchanged until their focused v3 issues are approved.
+Version 2.1.2 remains the final legacy-compatible v2 release. Stable v3 begins
+at `3.0.0` with a minimum of Python 3.9. The completed focused v3 issues correct
+constructor validation, string representation, transport cleanup, endpoint
+selection, payload framing, batching, and value handling, and add opt-in strict,
+async, and indexer-acknowledgment APIs. The exact upgrade impact is documented
+in [`migrating-to-v3.md`](migrating-to-v3.md).
