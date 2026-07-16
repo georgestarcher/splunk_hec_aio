@@ -25,6 +25,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- Moved detailed guidance for delivery modes, configuration, batching, and
+  troubleshooting to the project Wiki while keeping installation, quick start,
+  and mode selection in the README.
 - Moved the maintained live example from the repository root to
   `examples/example.py` and included the examples directory in source
   distributions while keeping it out of installed wheels.
