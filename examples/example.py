@@ -1,63 +1,50 @@
-"""example.py
-Demo use of HEC Class
-"""
+"""Compatible synchronous JSON delivery with explicit final flushing."""
 
-import json
 import logging
-import sys
+import os
 import time
 
 from splunk_hec_aio.splunk_hec_aio import SplunkHecAio
 
-# help(SplunkHecAio)
 
-# init logging config, this would be job of your main code using this class.
-logging.basicConfig(
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S %z",
-)
-
-log = logging.getLogger("MAIN")
-log.setLevel(logging.INFO)
-
-testHEC = SplunkHecAio("MYINSTANCE.splunkcloud.com", "MYTOKEN")
-testHEC.log.setLevel(logging.INFO)
-testHEC.set_port(443)
-
-# Set Index and Sourctype for Post Parameters. Very helpful when using raw data mode.
-testHEC.set_index("starcher_hec")
-testHEC.set_sourcetype("aio_json")
-testHEC.set_host("dollybean")
-testHEC.set_source("aio_python")
-
-# Setting Post Limits:
-# We set to maximum number of AIO concurrent POSTs
-testHEC.set_concurrent_post_limit(20)
-# set_post_max_byte_size: defaults to 512000 (max 800000)
-# We set the smaller 10,000 max size to force data to spread across the AIO concurrent POSTs
-testHEC.set_post_max_byte_size(10000)
-
-if not testHEC.check_connectivity():
-    sys.exit(1)
-
-testJSON = {}
-
-log.info("Starting Data Post")
-for i in range(100000):
-    testJSON.update({"event": {"count": i, "name": "dolly bean"}})
-    testJSON.update({"time": str(round(time.time(), 3))})
-    testHEC.post_data(testJSON)
-    payloadLength = len(json.dumps(testJSON))
-
-testHEC.flush()
-
-log.info(
-    "Completed Data Post: Post Max Size:{0} Max Payload Size:{1} Ratio to Event Size: {2}".format(
-        testHEC.get_post_max_byte_size(), payloadLength, round(20000 / payloadLength, 0)
+def configured_sender():
+    """Build a sender from environment variables without embedding a token."""
+    sender = SplunkHecAio(
+        os.environ["SPLUNK_HEC_HOST"],
+        os.environ["SPLUNK_HEC_TOKEN"],
     )
-)
+    sender.set_port(int(os.environ.get("SPLUNK_HEC_PORT", "443")))
+    sender.set_sourcetype(os.environ.get("SPLUNK_HEC_SOURCETYPE", "splunk_hec_aio"))
+    sender.set_source("splunk_hec_aio:compatible-example")
+    if index := os.environ.get("SPLUNK_HEC_INDEX"):
+        sender.set_index(index)
+    return sender
 
-# This Example:
-# time python3 examples/example.py
-# python3 examples/example.py  11.78s user 0.35s system 58% cpu 20.806 total
-# Completed Data Post: Post Max Size:10000 Max Payload Size:75 Ratio to Event Size: 267.0
+
+def main():
+    logging.basicConfig(
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        level=logging.INFO,
+    )
+    event_count = int(os.environ.get("SPLUNK_HEC_EVENT_COUNT", "1"))
+    if event_count < 1:
+        raise ValueError("SPLUNK_HEC_EVENT_COUNT must be a positive integer")
+
+    sender = configured_sender()
+    for sequence in range(event_count):
+        sender.post_data(
+            {
+                "time": round(time.time(), 3),
+                "event": {
+                    "message": "hello from compatible splunk_hec_aio delivery",
+                    "sequence": sequence,
+                },
+            }
+        )
+
+    # Always flush so the final partial batch is sent before the process exits.
+    sender.flush()
+
+
+if __name__ == "__main__":
+    main()

@@ -76,8 +76,8 @@ sender.flush()
 
 Port `443` is typical for Splunk Cloud Platform. Splunk Enterprise HEC commonly
 uses port `8088`; use the port configured by your Splunk administrator. See
-[`examples/README.md`](examples/README.md) for the maintained full example and
-its safety notes.
+[`examples/README.md`](examples/README.md) for runnable compatible, strict,
+async-strict, raw, and indexer-acknowledgment examples and their safety notes.
 
 The documented v2 import remains:
 
