@@ -12,6 +12,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Secret-safe runnable examples for compatible JSON, strict synchronous,
   strict asynchronous, raw, and indexer-acknowledgment delivery, with mocked
   execution tests and source-distribution coverage for every example.
+- A portable consumer-agent integration guide and separate repository
+  maintainer contract covering release, mode, secret, side-effect, and
+  search-backed adoption decisions, with offline documentation drift tests.
 
 ### Changed
 
@@ -19,6 +22,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   compatible example that sends one event by default and always flushes.
 - Updated the README and project Wiki for the stable v3 release and routed
   detailed example guidance through a dedicated Wiki page.
+- Linked agent-assisted adoption guidance from the README and project Wiki.
 
 ## [3.0.0] - 2026-07-16
 

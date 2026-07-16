@@ -55,3 +55,8 @@ See the
 and
 [Indexer acknowledgment Wiki guide](https://github.com/georgestarcher/splunk_hec_aio/wiki/Indexer-Acknowledgment)
 before selecting a production delivery mode.
+
+AI coding assistants adapting an example to another application should also
+follow the
+[`consumer-agent integration guide`](../docs/consumer-agent-guide.md) so release,
+mode, secret, side-effect, and search-verification decisions remain explicit.
