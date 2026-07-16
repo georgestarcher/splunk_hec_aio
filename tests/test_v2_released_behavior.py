@@ -186,17 +186,20 @@ class TestV2ReleasedBehavior(unittest.TestCase):
             self.assertIsNone(self.sender.flush())
         post_batch.assert_not_called()
 
-    def test_string_representation_records_connectivity_call(self):
-        # This describes v2.1.1; issue #9 proposes an explicit correction.
+    def test_string_representation_is_side_effect_free_in_v3(self):
+        # V2.1.2 called check_connectivity(); issue #9 intentionally removes
+        # that network-visible side effect in the v3 development line.
         with patch.object(
-            self.sender, "check_connectivity", return_value=True
+            self.sender,
+            "check_connectivity",
+            side_effect=AssertionError("str() must not check connectivity"),
         ) as connectivity:
             rendered = str(self.sender)
 
-        connectivity.assert_called_once_with()
+        connectivity.assert_not_called()
         self.assertEqual(
             rendered,
-            "Splunk: HOST=splunk.example HTTPS=True Reachable=True "
+            "Splunk: HOST=splunk.example HTTPS=True Reachable=NotChecked "
             "PopEmptyFields=True PayloadModeJSON=True ConcurrentPostLimit=10",
         )
 
