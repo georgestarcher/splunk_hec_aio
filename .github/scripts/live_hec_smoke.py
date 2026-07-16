@@ -217,6 +217,9 @@ def send_single_and_batch(environ: Mapping[str, str]) -> None:
     sender.set_source(config.source)
     sender.set_sourcetype(config.sourcetype)
 
+    if not sender.check_connectivity():
+        raise SmokeTestError("HEC health endpoint did not report healthy")
+
     common_event = {
         "ci_test_id": config.test_id,
         "repository": environ.get("GITHUB_REPOSITORY", ""),

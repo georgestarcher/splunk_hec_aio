@@ -52,6 +52,10 @@ class _RecordingRetryClient:
         self.requests.append((url, kwargs))
         return self.response
 
+    def get(self, url, **kwargs):
+        self.requests.append((url, kwargs))
+        return self.response
+
     async def close(self):
         self.closed = True
 
@@ -185,6 +189,55 @@ class TestHecProtocol(unittest.TestCase):
         expected_framing = "".join(json.dumps(event) for event in events)
         self.assertEqual(decompressed, expected_framing)
         self.assertNotEqual(decompressed, json.dumps(events))
+
+    def test_health_check_uses_unauthenticated_get_endpoint(self):
+        result = asyncio.run(
+            self.sender._http_health_task(self.sender.splunk_health_url)
+        )
+
+        url, request = self._only_request()
+        self.assertEqual(result, (200, "OK"))
+        self.assertEqual(
+            url,
+            "https://splunk.example:8088/services/collector/health",
+        )
+        self.assertEqual(
+            request,
+            {
+                "verify_ssl": True,
+                "headers": {"User-Agent": "Splunk-hec-sender/3.0 (Python)"},
+                "retry_options": sentinel.retry_options,
+            },
+        )
+        self.assertNotIn("Authorization", request["headers"])
+        self.jitter_retry.assert_called_once_with(
+            max_timeout=0.3,
+            attempts=1.0,
+            statuses={408, 429, 500, 502, 503, 504},
+        )
+        self.assertEqual(self.response.text_calls, 1)
+        self.assertTrue(self.retry_client.closed)
+
+    def test_connectivity_reports_health_without_accepting_event_errors(self):
+        cases = (
+            ((200, "OK"), True),
+            ((503, "Service Unavailable"), False),
+            ((429, "Too Many Requests"), False),
+            ((400, "Bad Request"), False),
+            (None, False),
+        )
+
+        for response, expected in cases:
+            with self.subTest(response=response):
+                with patch.object(
+                    self.sender,
+                    "_http_health_task",
+                    new=_AsyncCallRecorder(return_value=response),
+                ):
+                    self.assertIs(
+                        asyncio.run(self.sender._check_connectivity()),
+                        expected,
+                    )
 
     def test_json_payload_shapes_and_unicode_round_trip_deterministically(self):
         events = [

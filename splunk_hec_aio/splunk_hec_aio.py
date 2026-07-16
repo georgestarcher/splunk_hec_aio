@@ -162,7 +162,7 @@ class SplunkHecAio:
         SPLUNK_TOKEN -- The configured HEC Token - required
 
     Functions:
-        check_connectivity() returns:(bool) - returns if configured Splunk API instance is reachable
+        check_connectivity() returns:(bool) - returns whether HEC reports healthy
         post_data(dict OR str) returns(none) - posts JSON dictionary OR plain/text to configured Splunk HTTP API Endpoint
             NOTE: payload type is controlled by set_payload_json_format listed below and should be setup at instantiation
         flush() - returns(none) - required call before exiting your code to flush any remaining batched data
@@ -286,31 +286,24 @@ class SplunkHecAio:
 
         return(response.status,response.reason) 
     
-     # ASync Web Post Method Specific for Checking HEC Reachability and Authentication
-    async def _http_health_task(self,url,work_queue):
+     # ASync Web Get Method Specific for Checking HEC Service Health
+    async def _http_health_task(self,url):
 
        # Use JitteryRetry which is exponential with some randomness.
         retry_options = JitterRetry(max_timeout=0.3,attempts=1.0,statuses=self.retry_http_status_codes)
 
-        health_headers = dict()
-        health_headers["Authorization"] = "Splunk %s" % (self.token)
-        health_headers["Content-Encoding"] = "gzip"
-        health_headers["Content-Type"] = "application/json"
-        health_headers["User-Agent"] = "Splunk-hec-sender/2.0 (Python)"
+        health_headers = {"User-Agent": "Splunk-hec-sender/3.0 (Python)"}
 
         async with ClientSession() as session:
             retry_client = RetryClient(session,self.http_raise_for_status)
-
-            while not work_queue.empty():
-                try:
-                    payload = await work_queue.get()
-                    payload_string = gzip.compress(json.dumps(payload).encode('utf-8'))
-                    async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=health_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
-                        await response.json()              
-                    await retry_client.close()
-                    return(response.status,response.reason) 
-                except Exception as e:
-                    self.log.debug(e)
+            try:
+                async with retry_client.get(url,verify_ssl=self.get_verify_tls(),headers=health_headers,retry_options=retry_options) as response:
+                    await response.text()
+                    return(response.status,response.reason)
+            except Exception as e:
+                self.log.debug(e)
+            finally:
+                await retry_client.close()
         return()
 
     def __init__(self,host: str,token: str):
@@ -430,12 +423,10 @@ class SplunkHecAio:
     
     @property 
     def splunk_health_url(self):
-        """Property returns Splunk API HTTP Health Check URL.
+        """Property returns the documented HEC service health URL.
 
-            We use the JSON event endpoint because we want our empty payload to return a 400 not index an empty event.
-                  
             Returns:
-                string: formed URL for the Splunk API heath check endpoint.
+                string: formed URL for the HEC health endpoint.
         """
 
         if self.get_https():
@@ -443,7 +434,7 @@ class SplunkHecAio:
         else:
             http_header = "http"
 
-        url = "%s://%s:%d/services/collector/event" % (http_header,self.host,self._port)
+        url = "%s://%s:%d/services/collector/health" % (http_header,self.host,self._port)
 
         return url
 
@@ -893,19 +884,18 @@ class SplunkHecAio:
         return self._host
     
     def check_connectivity(self):
-        """Checks connectivity to the Splunk API.
+        """Return whether the HEC service reports that it can accept input.
 
         Reference:
-            https://docs.splunk.com/Documentation/Splunk/9.1.2/Data/TroubleshootHTTPEventCollector
+            https://help.splunk.com/en/splunk-enterprise/rest-api-reference/9.4/input-endpoints/input-endpoint-descriptions
 
-        Notes: 
-            method will log warning on reachable errors such as bad token
-            method will warn on splunk hec server health codes
+        Notes:
+            Uses the unauthenticated GET /services/collector/health endpoint.
+            This checks service and queue health only. It does not validate the
+            configured token or prove that an event was accepted or indexed.
 
         Returns:
-            bool: Boolean result of if HEC is reachable
-        Notes:
-            method will warn on server health codes
+            bool: True only when the health endpoint returns HTTP 200.
         """
 
         is_available = asyncio.run(self._check_connectivity())
@@ -913,73 +903,35 @@ class SplunkHecAio:
         return is_available
 
     async def _check_connectivity(self):
-        """Private ASYNC function to check connectivity to the Splunk API.
+        """Private ASYNC function to check documented HEC service health.
 
         Returns:
-            bool: Boolean result of if API is reachable
+            bool: True only when HEC reports healthy.
         Notes:
-            Method will log warnings on server health codes [500,503].
             Internal Method.
         """
 
-        self.log.info("Checking Splunk reachability. HOST=%s",self.host)
-
-        response = dict() 
-        splunk_reachable = False
-        # We add 400 Bad Request to Acceptable since our test payload won't be indexed. But URL and Token will be checked.
-        ACCEPTABLE_STATUS_CODES = [200,400]
-        AUTHENTICATION_ERROR_STATUS_CODES = [401,403]
-        HEATH_WARNING_STATUS_CODES = [500,503]
+        self.log.info("Checking Splunk HEC health. HOST=%s",self.host)
 
         try:
+            response = await self._http_health_task(self.splunk_health_url)
+            if not response:
+                self.log.warning("Splunk HEC health check failed. HOST=%s",self.host)
+                return False
 
-            # Intentionally make useless payload
-            work_item = {}
-
-            await self.work_queue.put(work_item)
-            response = await asyncio.gather(
-                asyncio.create_task(self._http_health_task(self.splunk_health_url,self.work_queue)),
-                )
-
-            response_status_code = "unknown"
-            response_text = ""
-
-            if not response[0]:
-                self.log.warning("Splunk is unreachable. HOST=%s",self.host)
-                self.log.debug("RESPONSE: {0}".format(response))
-                return splunk_reachable
+            response_status_code, response_reason = response
+            if response_status_code == 200:
+                self.log.info("Splunk HEC is healthy. HOST=%s",self.host)
+                return True
+            if response_status_code in (429,503):
+                self.log.warning("Splunk HEC is unhealthy. HOST=%s http_status_code=%s http_message=%s",self.host,response_status_code,response_reason)
             else:
-                try:
-                    response_status_code, response_text = response[0]
-                except:
-                    self.log.debug("RESPONSE: {0}".format(response))
-                    raise ConnectionError("Unreachable.")
-
-            # A 400 is acceptable as this only comes up if the URL and TOKEN are valid and reachable
-            if response_status_code==200 or response_status_code == 400:
-                self.log.info("Splunk is reachable. HOST=%s",self.host)
-                splunk_reachable = True
-            else:
-                if response_status_code in ACCEPTABLE_STATUS_CODES:
-                    self.log.info("Splunk is reachable. HOST=%s",self.host)
-                    self.log.warning("Connectivity Check: HOST=%s http_status_code=%s http_message=%s",self.host,response_status_code,response_text)
-                    splunk_reachable = True
-                elif response_status_code in AUTHENTICATION_ERROR_STATUS_CODES:
-                    self.log.debug("RESPONSE: {0}".format(response))
-                    self.log.warning("Splunk has potential authentication issues. HOST=%s",self.host)
-                    self.log.error("Connectivity Check: HOST=%s http_status_code=%s http_message=%s",self.host,response_status_code,response_text)
-                elif response_status_code in HEATH_WARNING_STATUS_CODES:
-                    self.log.warning("Splunk has potential health issues. HOST=%s",self.host)
-                    self.log.error("Connectivity Check: HOST=%s http_status_code=%s http_message=%s",self.host,response_status_code,response_text)
-                else:
-                    self.log.debug(response)
-                    self.log.warning("Splunk is unreachable. HOST=%s",self.host)
-                    self.log.error("HOST=%s HTTP status_code=%s message=%s ",self.host, response_status_code,response_text)
+                self.log.warning("Splunk HEC health request was not successful. HOST=%s http_status_code=%s http_message=%s",self.host,response_status_code,response_reason)
         except Exception as e:
-            self.log.warning("Splunk is unreachable. HOST=%s",self.host)
+            self.log.warning("Splunk HEC health check failed. HOST=%s",self.host)
             self.log.exception(e)
 
-        return splunk_reachable
+        return False
 
     async def _post_batch(self):
         """Asyncronously posts the accumulated payloads to Splunk.

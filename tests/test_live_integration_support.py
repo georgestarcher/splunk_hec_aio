@@ -157,6 +157,7 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
             ) as sender_class,
             patch.object(live_hec_smoke.time, "time", return_value=1.25),
         ):
+            sender.check_connectivity.return_value = True
             live_hec_smoke.send_single_and_batch(environment)
 
         sender_class.assert_called_once_with("splunk.example.com", "hec-token")
@@ -165,6 +166,7 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
         sender.set_index.assert_called_once_with("ci_index")
         sender.set_source.assert_called_once_with("github-actions")
         sender.set_sourcetype.assert_called_once_with("splunk_hec_aio_ci")
+        sender.check_connectivity.assert_called_once_with()
         self.assertEqual(sender.post_data.call_count, 4)
         self.assertEqual(sender.flush.call_count, 2)
         payloads = [call.args[0] for call in sender.post_data.call_args_list]
@@ -186,9 +188,33 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
             ["owner/repository"] * 4,
         )
         self.assertEqual(
-            [entry[0] for entry in sender.method_calls[-6:]],
-            ["post_data", "flush", "post_data", "post_data", "post_data", "flush"],
+            [entry[0] for entry in sender.method_calls[-7:]],
+            [
+                "check_connectivity",
+                "post_data",
+                "flush",
+                "post_data",
+                "post_data",
+                "post_data",
+                "flush",
+            ],
         )
+
+    def test_send_stops_before_delivery_when_hec_is_unhealthy(self):
+        environment = valid_environment()
+        sender = MagicMock()
+        sender.check_connectivity.return_value = False
+
+        with patch.object(live_hec_smoke, "SplunkHecAio", return_value=sender):
+            with self.assertRaisesRegex(
+                live_hec_smoke.SmokeTestError,
+                "HEC health endpoint did not report healthy",
+            ):
+                live_hec_smoke.send_single_and_batch(environment)
+
+        sender.check_connectivity.assert_called_once_with()
+        sender.post_data.assert_not_called()
+        sender.flush.assert_not_called()
 
 
 @unittest.skipUnless(

@@ -152,10 +152,12 @@ environment variables `SPLUNK_HEC_PORT`, `SPLUNK_HEC_INDEX`,
 not copy any of these values into workflow logs, committed files, or issue
 reports.
 
-For each run, the workflow first sends and flushes one standalone event. It
-then queues three events with a shared unique `ci_test_id` and distinct batch
-positions and flushes them together through the public `SplunkHecAio`
-interface. It renders the committed
+For each run, the workflow first requires the documented HEC health endpoint to
+report healthy. That service check is unauthenticated and does not validate the
+ingest token or prove delivery. The workflow then sends and flushes one
+standalone event, queues three events with a shared unique `ci_test_id` and
+distinct batch positions, and flushes them together through the public
+`SplunkHecAio` interface. It renders the committed
 `.github/querysplunk/hec-smoke.yml` template into a temporary file, validates
 it with a pinned and checksum-verified querysplunk release, and searches for
 the marker for at most 80 seconds. The search succeeds only when Splunk has at
