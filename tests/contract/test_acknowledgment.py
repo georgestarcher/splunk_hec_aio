@@ -21,6 +21,7 @@ class _AckHecServer:
         self.event_requests = []
         self.ack_requests = []
         self.event_responses = []
+        self.event_responder = None
         self.ack_responder = lambda ack_ids: {str(ack_id): True for ack_id in ack_ids}
         self.runner = None
         self.port = None
@@ -50,7 +51,12 @@ class _AckHecServer:
                 "body": body,
             }
         )
-        response = self.event_responses.pop(0)
+        if self.event_responder is None:
+            response = self.event_responses.pop(0)
+        else:
+            response = self.event_responder(request, body)
+            if inspect.isawaitable(response):
+                response = await response
         return web.json_response(response)
 
     async def _ack(self, request):
@@ -61,6 +67,7 @@ class _AckHecServer:
                 "headers": dict(request.headers),
                 "body": body,
                 "ack_ids": payload["acks"],
+                "query": dict(request.query),
             }
         )
         response = self.ack_responder(payload["acks"])
@@ -92,13 +99,16 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
             {"event": "b" * 2200},
             {"event": "c" * 2200},
         ]
-        self.server.event_responses.extend(
-            [
-                {"text": "Success", "code": 0, "ackId": 10},
-                {"text": "Success", "code": 0, "ackID": "11"},
-                {"text": "Success", "code": 0, "ackId": 12},
-            ]
-        )
+
+        def event_response(request, body):
+            del request
+            marker = json.loads(body)["event"][0]
+            ack_ids = {"a": 10, "b": 11, "c": 12}
+            if marker == "b":
+                return {"text": "Success", "code": 0, "ackID": "11"}
+            return {"text": "Success", "code": 0, "ackId": ack_ids[marker]}
+
+        self.server.event_responder = event_response
         poll_count = 0
 
         def acknowledge(ack_ids):
@@ -157,6 +167,13 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(
             "Content-Encoding",
             self.server.ack_requests[0]["headers"],
+        )
+        self.assertTrue(
+            all(
+                request["query"]["channel"]
+                == request["headers"]["X-Splunk-Request-Channel"]
+                for request in self.server.ack_requests
+            )
         )
         self.assertEqual(
             [json.loads(request["body"]) for request in self.server.event_requests],
@@ -258,12 +275,13 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_timeout_reports_mixed_results_and_keeps_only_false_id(self):
-        self.server.event_responses.extend(
-            [
-                {"text": "Success", "code": 0, "ackId": 30},
-                {"text": "Success", "code": 0, "ackId": 31},
-            ]
-        )
+        def event_response(request, body):
+            del request
+            event_name = json.loads(body)["event"]
+            ack_id = 30 if event_name == "confirmed" else 31
+            return {"text": "Success", "code": 0, "ackId": ack_id}
+
+        self.server.event_responder = event_response
         self.server.ack_responder = lambda ack_ids: {
             str(ack_id): ack_id == 30 for ack_id in ack_ids
         }
@@ -407,12 +425,14 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
     async def test_partial_send_failure_confirms_success_and_retains_retryable_batch(
         self,
     ):
-        self.server.event_responses.extend(
-            [
-                {"text": "Success", "code": 0, "ackId": 60},
-                {"text": "Server is busy", "code": 9},
-            ]
-        )
+        def event_response(request, body):
+            del request
+            event_name = json.loads(body)["event"]
+            if event_name == "accepted":
+                return {"text": "Success", "code": 0, "ackId": 60}
+            return {"text": "Server is busy", "code": 9}
+
+        self.server.event_responder = event_response
         self.sender.post_queue.enqueue([{"event": "accepted"}])
         self.sender.post_queue.enqueue([{"event": "retry"}])
 
@@ -434,6 +454,23 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
             [{"event": "retry"}],
         )
         self.assertEqual(self.sender._ack_pending, {})
+
+    async def test_ack_event_failure_is_not_retried_automatically(self):
+        self.sender.http_retries = 3
+        self.server.event_responses.append({"text": "Server is busy", "code": 9})
+        await self.sender.post_data_ack_async({"event": "single-attempt"})
+
+        with self.assertRaises(HecAcknowledgmentError) as raised:
+            await self.sender.flush_ack_async(
+                timeout=1,
+                poll_interval=0.01,
+            )
+
+        self.assertEqual(len(self.server.event_requests), 1)
+        self.assertEqual(self.server.ack_requests, [])
+        self.assertEqual(len(raised.exception.failures), 1)
+        self.assertTrue(raised.exception.failures[0].retryable)
+        self.assertEqual(self.sender.post_queue.size, 1)
 
 
 if __name__ == "__main__":

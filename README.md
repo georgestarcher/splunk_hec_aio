@@ -117,6 +117,10 @@ channel per sender, returns structured `HecAcknowledgmentResult` values, and
 raises `HecAcknowledgmentError` with bounded per-batch failures when an ID
 cannot be confirmed. A timeout keeps the pending ACK ID; calling `flush_ack()`
 again resumes polling without automatically resending the accepted batch.
+ACK event POSTs are single-attempt because silently retrying after a lost or
+truncated response could create duplicates. An uncertain send remains queued,
+but retrying it is an explicit caller decision and can still produce a
+duplicate if Splunk accepted the original request.
 Splunk documents general indexer acknowledgment as Splunk Enterprise-only;
 Splunk Cloud Platform supports it only for the AWS Kinesis Data Firehose
 integration. See the

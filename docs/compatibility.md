@@ -84,6 +84,13 @@ automatically resending an accepted event batch. This avoids creating
 duplicates when HEC accepted a batch but its acknowledgment status remains
 uncertain.
 
+ACK event POSTs do not inherit strict mode's automatic transport retries. If a
+request or response becomes uncertain, the batch remains queued and the typed
+failure makes any later resend an explicit caller action. Such a resend can
+still create a duplicate when Splunk accepted the original request but its
+response was lost. ACK status polling remains safely retryable because it does
+not resend event data.
+
 ACK response and failure objects contain batch metadata and acknowledgment IDs,
 not event contents, token values, or arbitrary response bodies. A confirmed
 indexer acknowledgment proves the configured replication condition, not event

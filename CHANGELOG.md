@@ -14,9 +14,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   results and bounded failures, configurable polling deadlines, immediate
   removal of confirmed IDs, and resumable unconfirmed IDs after timeout or
   cancellation without automatic event resend. Existing compatible and strict
-  delivery methods remain unchanged. General ACK use is documented as Splunk
-  Enterprise-only, with Splunk Cloud Platform limited to its AWS Kinesis Data
-  Firehose integration.
+  delivery methods remain unchanged. ACK event POSTs are single-attempt so
+  response uncertainty cannot cause a silent duplicate; retryable uncertain
+  batches remain queued for an explicit caller decision. General ACK use is
+  documented as Splunk Enterprise-only, with Splunk Cloud Platform limited to
+  its AWS Kinesis Data Firehose integration.
 - Additive `check_connectivity_async()`, `post_data_async()`, `flush_async()`,
   `post_data_strict_async()`, and `flush_strict_async()` entry points for
   applications that already run an event loop. Existing synchronous names,

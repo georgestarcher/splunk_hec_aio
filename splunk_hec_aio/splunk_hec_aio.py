@@ -547,16 +547,25 @@ class SplunkHecAio:
     ):
         """Post one batch and return a structured result or raise a strict error."""
 
-        retry_options = JitterRetry(
-            attempts=self.http_retries,
-            statuses=self.retry_http_status_codes,
-            exceptions={
-                asyncio.TimeoutError,
-                ClientConnectionError,
-                ClientPayloadError,
-            },
-            evaluate_response_callback=_strict_response_body_is_readable,
-        )
+        if ack_channel is None:
+            retry_options = JitterRetry(
+                attempts=self.http_retries,
+                statuses=self.retry_http_status_codes,
+                exceptions={
+                    asyncio.TimeoutError,
+                    ClientConnectionError,
+                    ClientPayloadError,
+                },
+                evaluate_response_callback=_strict_response_body_is_readable,
+            )
+        else:
+            # Once an ACK-mode request might have reached HEC, retrying its
+            # event body automatically could create an unreported duplicate.
+            retry_options = JitterRetry(
+                attempts=1,
+                statuses=set(),
+                exceptions=set(),
+            )
         timeout = ClientTimeout(total=30.0,connect=10.0,sock_read=30.0)
         event_count = len(payload)
 
@@ -937,6 +946,7 @@ class SplunkHecAio:
                     verify_ssl=self.get_verify_tls(),
                     headers=self._ack_status_headers(channel),
                     retry_options=retry_options,
+                    params={"channel":channel},
                     data=request_body,
                 ) as response:
                     response_body = await response.text()
@@ -1029,7 +1039,15 @@ class SplunkHecAio:
                     ),
                 )
 
-            ack_ids = tuple(self._ack_pending)
+            ack_ids = tuple(
+                sorted(
+                    self._ack_pending,
+                    key=lambda ack_id:(
+                        self._ack_pending[ack_id].batch_index,
+                        ack_id,
+                    ),
+                )
+            )
             request_uses_remaining_deadline = remaining <= 30.0
             try:
                 statuses = await asyncio.wait_for(

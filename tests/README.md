@@ -29,7 +29,9 @@ status exchange without contacting Splunk or any public network: stable channel
 reuse, JSON and raw framing, multiple IDs, false-to-true polling, immediate
 removal of confirmed IDs, missing and duplicate IDs, malformed responses,
 mixed timeout results, cancellation retention, and polling-only resume without
-automatic event resend.
+automatic event resend. It also proves ACK event POSTs are single-attempt and
+that status queries carry the stable channel in both the required query
+parameter and request header.
 
 Known specification gaps are expressed as narrow assertions of released v2
 behavior linked to the issue that owns the correction. The owning change must
