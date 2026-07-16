@@ -150,6 +150,11 @@ sender.set_source("aio_python")
 In JSON mode the client adds configured metadata to the HEC payload. In raw
 mode it adds the supported values to the request parameters.
 
+When multiple JSON events are sent in one request, the v3 client follows
+Splunk's HEC batch format by concatenating complete event objects without
+wrapping them in a JSON array. See Splunk's
+[event-formatting and batching documentation](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.2/get-data-with-http-event-collector/format-events-for-http-event-collector).
+
 ### 400 Bad Request
 
 If Splunk returns `400 Bad Request` while an index is configured, confirm that

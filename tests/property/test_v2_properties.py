@@ -128,8 +128,16 @@ def test_json_transport_round_trips_bounded_event_batches(events):
     _, request = _post_batch(sender, events)
     body = gzip.decompress(request["data"]).decode("utf-8")
 
-    assert body == json.dumps(events)
-    assert json.loads(body) == events
+    assert body == "".join(json.dumps(event) for event in events)
+
+    decoder = json.JSONDecoder()
+    decoded_events = []
+    offset = 0
+    while offset < len(body):
+        event, offset = decoder.raw_decode(body, offset)
+        decoded_events.append(event)
+
+    assert decoded_events == events
 
 
 @PROPERTY_SETTINGS
