@@ -127,6 +127,14 @@ class TestHecProtocol(unittest.TestCase):
 
         return asyncio.run(post())
 
+    def _get_through_transport(self):
+        async def get():
+            work_queue = asyncio.Queue()
+            await work_queue.put(self.sender.splunk_health_url)
+            return await self.sender._http_get_task(work_queue)
+
+        return asyncio.run(get())
+
     def _only_request(self):
         self.assertEqual(len(self.retry_client.requests), 1)
         return self.retry_client.requests[0]
@@ -216,6 +224,38 @@ class TestHecProtocol(unittest.TestCase):
             statuses={408, 429, 500, 502, 503, 504},
         )
         self.assertEqual(self.response.text_calls, 1)
+        self.assertTrue(self.retry_client.closed)
+
+    def test_compatible_get_closes_retry_client_after_success(self):
+        result = self._get_through_transport()
+
+        self.assertEqual(result, (200, "OK"))
+        self.assertTrue(self.session.exited)
+        self.assertTrue(self.retry_client.closed)
+
+    def test_compatible_get_closes_retry_client_after_request_error(self):
+        with patch.object(
+            self.retry_client,
+            "get",
+            side_effect=asyncio.TimeoutError,
+        ):
+            self.assertIsNone(self._get_through_transport())
+
+        self.assertTrue(self.session.exited)
+        self.assertTrue(self.retry_client.closed)
+
+    def test_health_error_returns_empty_tuple_and_closes_retry_client(self):
+        with patch.object(
+            self.retry_client,
+            "get",
+            side_effect=asyncio.TimeoutError,
+        ):
+            result = asyncio.run(
+                self.sender._http_health_task(self.sender.splunk_health_url)
+            )
+
+        self.assertEqual(result, tuple())
+        self.assertTrue(self.session.exited)
         self.assertTrue(self.retry_client.closed)
 
     def test_connectivity_reports_health_without_accepting_event_errors(self):
@@ -351,6 +391,7 @@ class TestHecProtocol(unittest.TestCase):
 
         self.assertEqual(self.response.text_calls, 1)
         self.assertTrue(self.session.exited)
+        self.assertTrue(self.retry_client.closed)
 
     def test_terminal_http_error_records_released_non_raising_behavior(self):
         # Issue #10 owns changing this through an additive result/exception API.
@@ -363,8 +404,7 @@ class TestHecProtocol(unittest.TestCase):
         self.assertEqual(result, (401, "Unauthorized"))
         self.assertEqual(self.response.text_calls, 1)
 
-    def test_timeout_records_released_retry_client_cleanup_gap(self):
-        # Issue #12 owns ensuring client cleanup on every exceptional path.
+    def test_timeout_closes_compatible_retry_client_and_propagates(self):
         with patch.object(
             self.retry_client,
             "post",
@@ -374,7 +414,19 @@ class TestHecProtocol(unittest.TestCase):
                 self._post_batch_through_transport([{"event": "timeout"}])
 
         self.assertTrue(self.session.exited)
-        self.assertFalse(self.retry_client.closed)
+        self.assertTrue(self.retry_client.closed)
+
+    def test_cancellation_closes_compatible_retry_client_and_propagates(self):
+        with patch.object(
+            self.retry_client,
+            "post",
+            side_effect=asyncio.CancelledError,
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                self._post_batch_through_transport([{"event": "cancelled"}])
+
+        self.assertTrue(self.session.exited)
+        self.assertTrue(self.retry_client.closed)
 
     def test_ascii_batch_boundaries_preserve_each_event_once(self):
         self.sender.set_pop_empty_fields(False)
