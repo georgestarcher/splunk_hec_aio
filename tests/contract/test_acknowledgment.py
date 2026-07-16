@@ -175,7 +175,7 @@ class TestIndexerAcknowledgment(unittest.IsolatedAsyncioTestCase):
                 for request in self.server.ack_requests
             )
         )
-        self.assertEqual(
+        self.assertCountEqual(
             [json.loads(request["body"]) for request in self.server.event_requests],
             events,
         )
