@@ -12,7 +12,12 @@ from dataclasses import dataclass
 from typing import Optional
 
 import asyncio
-from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
+from aiohttp import (
+    ClientConnectionError,
+    ClientPayloadError,
+    ClientSession,
+    ClientTimeout,
+)
 from aiohttp_retry import RetryClient, JitterRetry
 
 
@@ -106,6 +111,16 @@ def _strict_failure_is_retryable(failure):
     return (
         isinstance(failure, HecResponseError) and failure.result.retryable
     ) or (isinstance(failure, HecTransportError) and failure.retryable)
+
+
+async def _strict_response_body_is_readable(response):
+    """Let aiohttp-retry repeat requests with truncated response bodies."""
+
+    try:
+        await response.text()
+    except ClientPayloadError:
+        return False
+    return True
 
 
 # Class for Queue objects.
@@ -436,7 +451,12 @@ class SplunkHecAio:
         retry_options = JitterRetry(
             attempts=self.http_retries,
             statuses=self.retry_http_status_codes,
-            exceptions={asyncio.TimeoutError,ClientConnectionError},
+            exceptions={
+                asyncio.TimeoutError,
+                ClientConnectionError,
+                ClientPayloadError,
+            },
+            evaluate_response_callback=_strict_response_body_is_readable,
         )
         timeout = ClientTimeout(total=30.0,connect=10.0,sock_read=30.0)
         event_count = len(payload)
@@ -486,6 +506,13 @@ class SplunkHecAio:
                     batch_index,
                     event_count,
                     "connection failed",
+                    True,
+                ) from error
+            except ClientPayloadError as error:
+                raise HecTransportError(
+                    batch_index,
+                    event_count,
+                    "response read failed",
                     True,
                 ) from error
             except Exception as error:

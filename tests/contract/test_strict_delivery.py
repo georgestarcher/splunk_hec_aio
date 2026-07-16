@@ -5,7 +5,7 @@ import logging
 import unittest
 from unittest.mock import AsyncMock, patch, sentinel
 
-from aiohttp import ClientConnectionError
+from aiohttp import ClientConnectionError, ClientPayloadError
 
 from splunk_hec_aio.splunk_hec_aio import (
     HecBatchDeliveryError,
@@ -13,14 +13,16 @@ from splunk_hec_aio.splunk_hec_aio import (
     HecResponseError,
     HecTransportError,
     SplunkHecAio,
+    _strict_response_body_is_readable,
 )
 
 
 class _Response:
-    def __init__(self, status=200, reason="OK", body=None):
+    def __init__(self, status=200, reason="OK", body=None, text_error=None):
         self.status = status
         self.reason = reason
         self.body = body or '{"text":"Success","code":0}'
+        self.text_error = text_error
         self.text_calls = 0
 
     async def __aenter__(self):
@@ -31,6 +33,8 @@ class _Response:
 
     async def text(self):
         self.text_calls += 1
+        if self.text_error is not None:
+            raise self.text_error
         return self.body
 
 
@@ -149,10 +153,23 @@ class TestStrictDelivery(unittest.TestCase):
             self.session,
             raise_for_status=False,
         )
-        self.jitter_retry.assert_called_once_with(
-            attempts=3,
-            statuses={408, 429, 500, 502, 503, 504},
-            exceptions={asyncio.TimeoutError, ClientConnectionError},
+        retry_configuration = self.jitter_retry.call_args.kwargs
+        self.assertEqual(retry_configuration["attempts"], 3)
+        self.assertEqual(
+            retry_configuration["statuses"],
+            {408, 429, 500, 502, 503, 504},
+        )
+        self.assertEqual(
+            retry_configuration["exceptions"],
+            {
+                asyncio.TimeoutError,
+                ClientConnectionError,
+                ClientPayloadError,
+            },
+        )
+        self.assertIs(
+            retry_configuration["evaluate_response_callback"],
+            _strict_response_body_is_readable,
         )
         self.assertTrue(self.retry_client.closed)
         self.assertEqual(self.response.text_calls, 1)
@@ -298,6 +315,24 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertTrue(raised.exception.retryable)
         self.assertNotIn("connection refused", str(raised.exception))
         self.assertTrue(self.retry_client.closed)
+
+    def test_response_body_read_failure_is_retryable_and_closes_client(self):
+        self.response.text_error = ClientPayloadError(
+            "truncated response included test-token"
+        )
+
+        with self.assertRaises(HecTransportError) as raised:
+            self.strict_post(batch_index=5)
+
+        self.assertEqual(raised.exception.batch_index, 5)
+        self.assertEqual(raised.exception.category, "response read failed")
+        self.assertTrue(raised.exception.retryable)
+        self.assertNotIn("test-token", str(raised.exception))
+        self.assertTrue(self.retry_client.closed)
+        self.assertTrue(self.session.exited)
+        retry_configuration = self.jitter_retry.call_args.kwargs
+        callback = retry_configuration["evaluate_response_callback"]
+        self.assertFalse(asyncio.run(callback(self.response)))
 
     def test_partial_batch_failure_reports_positions_without_payloads(self):
         batches = [
