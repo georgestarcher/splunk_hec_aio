@@ -371,6 +371,26 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertEqual(len(raised.exception.failures), 2)
         self.assertEqual(self.sender.post_queue.elements, [batches[0], batches[2]])
 
+        new_batch = [{"event": "new-after-failure"}]
+        self.sender.post_queue.enqueue(new_batch)
+
+        async def retry(url, batch, batch_index):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            return result(batch_index, len(batch))
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=retry),
+        ):
+            deliveries = asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual(
+            [item.batch_index for item in deliveries],
+            [0, 2, 3],
+        )
+        self.assertTrue(self.sender.post_queue.is_empty)
+
     def test_replayed_retryable_batches_respect_concurrency_limit(self):
         self.sender.set_concurrent_post_limit(1)
         batches = [
@@ -486,6 +506,20 @@ class TestStrictDelivery(unittest.TestCase):
         asyncio.run(cancel_delivery())
 
         self.assertEqual(self.sender.post_queue.elements, batches[1:])
+
+        async def retry(url, batch, batch_index):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            return result(batch_index, len(batch))
+
+        with patch.object(
+            self.sender,
+            "_http_post_strict_task",
+            new=AsyncMock(side_effect=retry),
+        ):
+            deliveries = asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual([item.batch_index for item in deliveries], [1, 2])
+        self.assertTrue(self.sender.post_queue.is_empty)
 
     def test_strict_auto_flush_propagates_failure(self):
         self.sender.set_pop_empty_fields(False)

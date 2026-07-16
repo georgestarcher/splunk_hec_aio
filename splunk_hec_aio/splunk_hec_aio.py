@@ -505,24 +505,59 @@ class SplunkHecAio:
             return tuple()
 
         batches = [self.post_queue.dequeue() for _ in range(self.post_queue.size)]
+        retained_indexes = []
+        for batch in batches:
+            metadata = self._strict_batch_metadata.pop(id(batch),None)
+            if metadata is not None and metadata[0] is batch:
+                retained_indexes.append(metadata[1])
+            else:
+                retained_indexes.append(None)
+        self._strict_batch_metadata.clear()
+        next_batch_index = (
+            max(
+                (
+                    batch_index
+                    for batch_index in retained_indexes
+                    if batch_index is not None
+                ),
+                default=-1,
+            )
+            + 1
+        )
+        batch_indexes = []
+        for retained_index in retained_indexes:
+            if retained_index is None:
+                retained_index = next_batch_index
+                next_batch_index += 1
+            batch_indexes.append(retained_index)
+
         max_concurrency = self.get_concurrent_post_limit()
         results = []
         failures = []
-        retryable_batch_indexes = set()
+        retained_batch_positions = set()
         propagated_outcome = None
+
+        def retain_batches(batch_positions):
+            for batch_position in sorted(batch_positions):
+                batch = batches[batch_position]
+                self._strict_batch_metadata[id(batch)] = (
+                    batch,
+                    batch_indexes[batch_position],
+                )
+                self.post_queue.enqueue(batch)
 
         for wave_start in range(0,len(batches),max_concurrency):
             wave_stop = min(wave_start + max_concurrency,len(batches))
-            wave_indexes = range(wave_start,wave_stop)
+            wave_positions = range(wave_start,wave_stop)
             tasks = [
                 asyncio.create_task(
                     self._http_post_strict_task(
                         self.splunk_post_url,
-                        batches[batch_index],
-                        batch_index,
+                        batches[batch_position],
+                        batch_indexes[batch_position],
                     )
                 )
-                for batch_index in wave_indexes
+                for batch_position in wave_positions
             ]
             try:
                 outcomes = await asyncio.gather(*tasks,return_exceptions=True)
@@ -534,8 +569,8 @@ class SplunkHecAio:
                     *tasks,
                     return_exceptions=True,
                 )
-                for batch_index,outcome in zip(
-                    wave_indexes,
+                for batch_position,outcome in zip(
+                    wave_positions,
                     cancelled_outcomes,
                 ):
                     if isinstance(outcome, HecDeliveryResult):
@@ -544,15 +579,14 @@ class SplunkHecAio:
                         _strict_failure_is_retryable(outcome)
                     ):
                         continue
-                    retryable_batch_indexes.add(batch_index)
-                retryable_batch_indexes.update(range(wave_stop,len(batches)))
-                for batch_index in sorted(retryable_batch_indexes):
-                    self.post_queue.enqueue(batches[batch_index])
+                    retained_batch_positions.add(batch_position)
+                retained_batch_positions.update(range(wave_stop,len(batches)))
+                retain_batches(retained_batch_positions)
                 raise
 
-            for batch_index,outcome in zip(wave_indexes,outcomes):
+            for batch_position,outcome in zip(wave_positions,outcomes):
                 if isinstance(outcome, asyncio.CancelledError):
-                    retryable_batch_indexes.add(batch_index)
+                    retained_batch_positions.add(batch_position)
                     if propagated_outcome is None:
                         propagated_outcome = outcome
                 elif isinstance(outcome, HecDeliveryResult):
@@ -560,27 +594,26 @@ class SplunkHecAio:
                 elif isinstance(outcome, HecDeliveryError):
                     failures.append(outcome)
                     if _strict_failure_is_retryable(outcome):
-                        retryable_batch_indexes.add(batch_index)
+                        retained_batch_positions.add(batch_position)
                 elif isinstance(outcome, Exception):
                     failures.append(
                         HecTransportError(
-                            batch_index,
-                            len(batches[batch_index]),
+                            batch_indexes[batch_position],
+                            len(batches[batch_position]),
                             "transport failed",
                             False,
                         )
                     )
                 elif isinstance(outcome, BaseException):
-                    retryable_batch_indexes.add(batch_index)
+                    retained_batch_positions.add(batch_position)
                     if propagated_outcome is None:
                         propagated_outcome = outcome
 
             if propagated_outcome is not None:
-                retryable_batch_indexes.update(range(wave_stop,len(batches)))
+                retained_batch_positions.update(range(wave_stop,len(batches)))
                 break
 
-        for batch_index in sorted(retryable_batch_indexes):
-            self.post_queue.enqueue(batches[batch_index])
+        retain_batches(retained_batch_positions)
 
         if propagated_outcome is not None:
             raise propagated_outcome
@@ -652,6 +685,9 @@ class SplunkHecAio:
         self.http_retries = 3
         self.set_verify_tls()
         self._strict_delivery = False
+        # Retained strict batches keep their original public result index
+        # without changing the raw batch lists stored in the legacy queue.
+        self._strict_batch_metadata = {}
 
         # Set Default batch max size for max bytes for the HTTP Endpoint.
         # Auto flush will occur if next event payload will exceed limit.

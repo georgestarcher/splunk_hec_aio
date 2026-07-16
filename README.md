@@ -227,10 +227,13 @@ a retry can create duplicate events. Design events and downstream processing
 to tolerate duplicates. After the configured attempts are exhausted, strict
 delivery keeps retryable failed batches queued in their original order. Calling
 `flush_strict()` again retries those batches; accepted batches and terminally
-rejected batches are not requeued. Retry dispatches continue to honor the
-configured concurrent-post limit. A cancelled batch is also retained before the
-original cancellation is re-raised. If the whole strict dispatch is cancelled,
-unfinished and retryable batches remain queued while batches already
+rejected batches are not requeued. Retained batches keep their original
+`batch_index` across attempts so results and failures remain correlatable; new
+batches joining that retry receive the next unused index. Retry dispatches
+continue to honor the configured concurrent-post limit. A cancelled batch is
+also retained before the original cancellation is re-raised. If the whole
+strict dispatch is cancelled, unfinished and retryable batches remain queued
+while batches already
 known to be accepted or terminally rejected are not requeued. A successful HEC
 response confirms request acceptance, not searchable indexing; use protected
 search-backed validation or optional indexer acknowledgment when that stronger
