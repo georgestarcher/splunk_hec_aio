@@ -42,8 +42,10 @@ class TestAsyncPublicApi(unittest.TestCase):
     def test_public_async_entry_points_are_coroutines(self):
         for method_name in (
             "check_connectivity_async",
+            "flush_ack_async",
             "flush_async",
             "flush_strict_async",
+            "post_data_ack_async",
             "post_data_async",
             "post_data_strict_async",
         ):

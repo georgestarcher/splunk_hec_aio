@@ -62,7 +62,7 @@ A characterization test may change only when the pull request:
   change.
 
 New async entry points, strict delivery results, and indexer acknowledgment must
-remain additive and opt-in in v2. Existing synchronous methods retain their
+remain additive and opt-in in v3. Existing synchronous methods retain their
 signatures, defaults, return values, and exception behavior.
 
 The v3 strict delivery API follows this rule by adding `post_data_strict()` and
@@ -73,6 +73,29 @@ internals without starting another event loop. The legacy synchronous methods
 and defaults remain unchanged. Strict callers opt into explicit timeouts,
 structured per-batch results, and propagated aggregate failures; callers that
 do not select the new methods retain the compatibility baseline.
+
+Indexer acknowledgment is selected only through `post_data_ack()` and
+`flush_ack()`, or their async counterparts. It does not change compatible or
+strict request headers, results, retries, defaults, or queue behavior. ACK mode
+uses a lazy stable channel for its own event and status requests. Confirmed IDs
+are removed immediately and never polled again. Timeout and cancellation leave
+unconfirmed IDs pending so a later ACK flush resumes polling without
+automatically resending an accepted event batch. This avoids creating
+duplicates when HEC accepted a batch but its acknowledgment status remains
+uncertain.
+
+ACK event POSTs do not inherit strict mode's automatic transport retries. If a
+request or response becomes uncertain, the batch remains queued and the typed
+failure makes any later resend an explicit caller action. Such a resend can
+still create a duplicate when Splunk accepted the original request but its
+response was lost. ACK status polling remains safely retryable because it does
+not resend event data.
+
+ACK response and failure objects contain batch metadata and acknowledgment IDs,
+not event contents, token values, or arbitrary response bodies. A confirmed
+indexer acknowledgment proves the configured replication condition, not event
+parsing or searchability. The protected query-backed live integration remains
+the separate evidence for indexed, searchable individual events.
 
 ## Running the baseline
 

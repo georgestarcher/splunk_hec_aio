@@ -7,6 +7,7 @@ __version__ = "3.0.0.dev0"
 import json
 import logging
 import gzip
+import math
 import uuid
 from dataclasses import dataclass
 from typing import Optional
@@ -34,6 +35,35 @@ class HecDeliveryResult:
     invalid_event_number: Optional[int]
     accepted: bool
     retryable: bool
+
+
+@dataclass(frozen=True)
+class HecAcknowledgmentResult:
+    """Confirmed indexer acknowledgment for one HEC batch."""
+
+    batch_index: int
+    event_count: int
+    ack_id: int
+    acknowledged: bool
+
+
+@dataclass(frozen=True)
+class HecAcknowledgmentFailure:
+    """Bounded failure context for one unconfirmed HEC batch."""
+
+    batch_index: int
+    event_count: int
+    ack_id: Optional[int]
+    category: str
+    retryable: bool
+
+
+@dataclass(frozen=True)
+class _HecAcknowledgmentDelivery:
+    """Internal accepted delivery paired with its ACK identifier."""
+
+    delivery: HecDeliveryResult
+    ack_id: Optional[int]
 
 
 class HecDeliveryError(Exception):
@@ -91,6 +121,30 @@ class HecBatchDeliveryError(HecDeliveryError):
         )
 
 
+class HecAcknowledgmentError(HecDeliveryError):
+    """Raised when one or more ACK-mode batches remain unconfirmed."""
+
+    def __init__(self, results, failures):
+        self.results = tuple(results)
+        self.failures = tuple(failures)
+        super().__init__(
+            "HEC acknowledgment failed for {0} batch request(s); "
+            "{1} batch request(s) were acknowledged".format(
+                len(self.failures),
+                len(self.results),
+            )
+        )
+
+
+class _HecAcknowledgmentStatusError(Exception):
+    """Internal bounded failure from an ACK status request."""
+
+    def __init__(self, category, retryable):
+        self.category = category
+        self.retryable = retryable
+        super().__init__(category)
+
+
 def _is_empty_json_value(value):
     """Return whether a top-level JSON field is empty under the sender policy."""
 
@@ -103,6 +157,35 @@ def _new_hec_channel():
     """Return a random UUID suitable for a HEC request channel."""
 
     return str(uuid.uuid4())
+
+
+def _ack_id_from_response_body(response_body):
+    """Parse Splunk's documented ackId/ackID without retaining the body."""
+
+    try:
+        response_data = json.loads(response_body)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(response_data, dict):
+        return None
+
+    candidate = response_data.get("ackId")
+    if candidate is None:
+        candidate = response_data.get("ackID")
+    if isinstance(candidate, int) and not isinstance(candidate, bool):
+        return candidate if candidate >= 0 else None
+    if isinstance(candidate, str) and candidate.isdigit():
+        return int(candidate)
+    return None
+
+
+def _strict_outcome_is_success(outcome):
+    """Return whether a strict dispatcher outcome is an accepted delivery."""
+
+    return isinstance(
+        outcome,
+        (HecDeliveryResult, _HecAcknowledgmentDelivery),
+    )
 
 
 def _strict_failure_is_retryable(failure):
@@ -268,6 +351,10 @@ class SplunkHecAio:
         post_data_strict_async(dict OR str) - async-compatible strict queue method
         flush_strict() - returns per-batch delivery results or raises HecBatchDeliveryError
         flush_strict_async() - async-compatible strict flush method
+        post_data_ack(dict OR str) - queues data with indexer acknowledgment enabled
+        post_data_ack_async(dict OR str) - async-compatible acknowledgment queue method
+        flush_ack() - confirms pending indexer acknowledgments or raises HecAcknowledgmentError
+        flush_ack_async() - async-compatible acknowledgment flush method
         set_pop_empty_fields(bool) - returns(none) - accepts bool value to control if empty/null fields are removed. Default is True.
         get_pop_empty_fields() - returns(bool) - displays current value controlling removing empty/null fields
         set_payload_json_format(bool) - returns(none) - accepts bool value to control payload format is application/json (True) or text/plain (False). Default is True.
@@ -451,19 +538,34 @@ class SplunkHecAio:
             retryable=retryable,
         )
 
-    async def _http_post_strict_task(self,url,payload,batch_index):
+    async def _http_post_strict_task(
+        self,
+        url,
+        payload,
+        batch_index,
+        ack_channel=None,
+    ):
         """Post one batch and return a structured result or raise a strict error."""
 
-        retry_options = JitterRetry(
-            attempts=self.http_retries,
-            statuses=self.retry_http_status_codes,
-            exceptions={
-                asyncio.TimeoutError,
-                ClientConnectionError,
-                ClientPayloadError,
-            },
-            evaluate_response_callback=_strict_response_body_is_readable,
-        )
+        if ack_channel is None:
+            retry_options = JitterRetry(
+                attempts=self.http_retries,
+                statuses=self.retry_http_status_codes,
+                exceptions={
+                    asyncio.TimeoutError,
+                    ClientConnectionError,
+                    ClientPayloadError,
+                },
+                evaluate_response_callback=_strict_response_body_is_readable,
+            )
+        else:
+            # Once an ACK-mode request might have reached HEC, retrying its
+            # event body automatically could create an unreported duplicate.
+            retry_options = JitterRetry(
+                attempts=1,
+                statuses=set(),
+                exceptions=set(),
+            )
         timeout = ClientTimeout(total=30.0,connect=10.0,sock_read=30.0)
         event_count = len(payload)
 
@@ -476,12 +578,18 @@ class SplunkHecAio:
         async with ClientSession(timeout=timeout) as session:
             retry_client = RetryClient(session,raise_for_status=False)
             try:
+                headers = self.splunk_headers
+                params = self.splunk_params
+                if ack_channel is not None:
+                    headers = self._ack_event_headers(ack_channel)
+                    params = self._ack_event_params(ack_channel)
+
                 async with retry_client.post(
                     url,
                     verify_ssl=self.get_verify_tls(),
-                    headers=self.splunk_headers,
+                    headers=headers,
                     retry_options=retry_options,
-                    params=self.splunk_params,
+                    params=params,
                     data=payload_string,
                 ) as response:
                     response_body = await response.text()
@@ -495,6 +603,11 @@ class SplunkHecAio:
                 )
                 if not result.accepted:
                     raise HecResponseError(result)
+                if ack_channel is not None:
+                    return _HecAcknowledgmentDelivery(
+                        delivery=result,
+                        ack_id=_ack_id_from_response_body(response_body),
+                    )
                 return result
             except asyncio.CancelledError:
                 raise
@@ -531,7 +644,7 @@ class SplunkHecAio:
             finally:
                 await retry_client.close()
 
-    async def _post_batch_strict(self):
+    async def _post_batch_strict(self,ack_channel=None):
         """Post completed batches within the configured concurrency limit."""
 
         if self.post_queue.is_empty:
@@ -571,16 +684,29 @@ class SplunkHecAio:
         for wave_start in range(0,len(batches),max_concurrency):
             wave_stop = min(wave_start + max_concurrency,len(batches))
             wave_positions = range(wave_start,wave_stop)
-            tasks = [
-                asyncio.create_task(
-                    self._http_post_strict_task(
-                        self.splunk_post_url,
-                        batches[batch_position],
-                        batch_indexes[batch_position],
+            if ack_channel is None:
+                tasks = [
+                    asyncio.create_task(
+                        self._http_post_strict_task(
+                            self.splunk_post_url,
+                            batches[batch_position],
+                            batch_indexes[batch_position],
+                        )
                     )
-                )
-                for batch_position in wave_positions
-            ]
+                    for batch_position in wave_positions
+                ]
+            else:
+                tasks = [
+                    asyncio.create_task(
+                        self._http_post_strict_task(
+                            self.splunk_post_url,
+                            batches[batch_position],
+                            batch_indexes[batch_position],
+                            ack_channel,
+                        )
+                    )
+                    for batch_position in wave_positions
+                ]
             try:
                 outcomes = await asyncio.gather(*tasks,return_exceptions=True)
             except asyncio.CancelledError:
@@ -595,7 +721,7 @@ class SplunkHecAio:
                     wave_positions,
                     cancelled_outcomes,
                 ):
-                    if isinstance(outcome, HecDeliveryResult):
+                    if _strict_outcome_is_success(outcome):
                         continue
                     if isinstance(outcome, HecDeliveryError) and not (
                         _strict_failure_is_retryable(outcome)
@@ -604,6 +730,10 @@ class SplunkHecAio:
                     retained_batch_positions.add(batch_position)
                 retained_batch_positions.update(range(wave_stop,len(batches)))
                 retain_batches(retained_batch_positions)
+                if ack_channel is not None:
+                    self._defer_ack_outcomes(
+                        results + failures + cancelled_outcomes
+                    )
                 raise
 
             for batch_position,outcome in zip(wave_positions,outcomes):
@@ -611,7 +741,7 @@ class SplunkHecAio:
                     retained_batch_positions.add(batch_position)
                     if propagated_outcome is None:
                         propagated_outcome = outcome
-                elif isinstance(outcome, HecDeliveryResult):
+                elif _strict_outcome_is_success(outcome):
                     results.append(outcome)
                 elif isinstance(outcome, HecDeliveryError):
                     failures.append(outcome)
@@ -638,10 +768,393 @@ class SplunkHecAio:
         retain_batches(retained_batch_positions)
 
         if propagated_outcome is not None:
+            if ack_channel is not None:
+                self._defer_ack_outcomes(results + failures)
             raise propagated_outcome
         if failures:
             raise HecBatchDeliveryError(results,failures)
         return tuple(results)
+
+    def _ack_event_headers(self,channel):
+        """Return event-ingest headers with the caller's stable ACK channel."""
+
+        headers = {
+            "Authorization": "Splunk %s" % (self.token),
+            "Content-Encoding": "gzip",
+            "Content-Type": (
+                "application/json" if self._payload_mode_json else "text/plain"
+            ),
+            "User-Agent": "Splunk-hec-sender/1.0 (Python)",
+            "X-Splunk-Request-Channel": channel,
+        }
+        return headers
+
+    def _ack_event_params(self,channel):
+        """Return raw-event parameters using the same stable ACK channel."""
+
+        if self._payload_mode_json:
+            return None
+
+        params = {"channel": channel}
+        if self._index:
+            params["index"] = self._index
+        if self._sourcetype:
+            params["sourcetype"] = self._sourcetype
+        if self._source:
+            params["source"] = self._source
+        if self._host:
+            params["host"] = self._host
+        return params
+
+    def _ack_status_headers(self,channel):
+        """Return uncompressed ACK-query headers for one event channel."""
+
+        return {
+            "Authorization": "Splunk %s" % (self.token),
+            "Content-Type": "application/json",
+            "User-Agent": "Splunk-hec-sender/1.0 (Python)",
+            "X-Splunk-Request-Channel": channel,
+        }
+
+    def _get_ack_channel(self):
+        """Create the sender's ACK channel only when ACK mode is first used."""
+
+        if self._ack_channel is None:
+            self._ack_channel = _new_hec_channel()
+        return self._ack_channel
+
+    def _validate_ack_polling(self,timeout,poll_interval):
+        """Validate and normalize public ACK polling controls."""
+
+        values = (
+            ("timeout",timeout),
+            ("poll_interval",poll_interval),
+        )
+        normalized = []
+        for name,value in values:
+            if (
+                isinstance(value,bool)
+                or not isinstance(value,(int,float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError("%s must be a finite positive number." % name)
+            normalized.append(float(value))
+        return tuple(normalized)
+
+    def _register_ack_deliveries(self,deliveries):
+        """Register accepted ACK-mode sends and report missing/duplicate IDs."""
+
+        failures = []
+        for outcome in deliveries:
+            if not isinstance(outcome,_HecAcknowledgmentDelivery):
+                continue
+            delivery = outcome.delivery
+            if outcome.ack_id is None:
+                failures.append(
+                    HecAcknowledgmentFailure(
+                        batch_index=delivery.batch_index,
+                        event_count=delivery.event_count,
+                        ack_id=None,
+                        category="acknowledgment identifier missing",
+                        retryable=False,
+                    )
+                )
+                continue
+            if outcome.ack_id in self._ack_pending:
+                failures.append(
+                    HecAcknowledgmentFailure(
+                        batch_index=delivery.batch_index,
+                        event_count=delivery.event_count,
+                        ack_id=outcome.ack_id,
+                        category="duplicate acknowledgment identifier",
+                        retryable=False,
+                    )
+                )
+                continue
+            self._ack_pending[outcome.ack_id] = HecAcknowledgmentResult(
+                batch_index=delivery.batch_index,
+                event_count=delivery.event_count,
+                ack_id=outcome.ack_id,
+                acknowledged=False,
+            )
+        return failures
+
+    def _ack_failure_from_delivery(self,failure):
+        """Convert a strict delivery failure to bounded ACK-mode context."""
+
+        if isinstance(failure,HecResponseError):
+            return HecAcknowledgmentFailure(
+                batch_index=failure.result.batch_index,
+                event_count=failure.result.event_count,
+                ack_id=None,
+                category="delivery rejected",
+                retryable=failure.result.retryable,
+            )
+        if isinstance(failure,HecTransportError):
+            return HecAcknowledgmentFailure(
+                batch_index=failure.batch_index,
+                event_count=failure.event_count,
+                ack_id=None,
+                category=failure.category,
+                retryable=failure.retryable,
+            )
+        return None
+
+    def _defer_ack_outcomes(self,outcomes):
+        """Preserve completed ACK outcomes while propagating cancellation."""
+
+        self._ack_deferred_failures.extend(
+            self._register_ack_deliveries(outcomes)
+        )
+        for outcome in outcomes:
+            failure = self._ack_failure_from_delivery(outcome)
+            if failure is not None and not failure.retryable:
+                self._ack_deferred_failures.append(failure)
+
+    async def _http_ack_status_task(
+        self,
+        ack_ids,
+        channel,
+        request_timeout,
+    ):
+        """Query bounded ACK statuses using the same channel as event ingest."""
+
+        retry_options = JitterRetry(
+            attempts=self.http_retries,
+            statuses=self.retry_http_status_codes,
+            exceptions={
+                asyncio.TimeoutError,
+                ClientConnectionError,
+                ClientPayloadError,
+            },
+            evaluate_response_callback=_strict_response_body_is_readable,
+        )
+        timeout = ClientTimeout(
+            total=request_timeout,
+            connect=min(10.0,request_timeout),
+            sock_read=request_timeout,
+        )
+        request_body = json.dumps(
+            {"acks":list(ack_ids)},
+            separators=(",",":"),
+        ).encode("utf-8")
+
+        async with ClientSession(timeout=timeout) as session:
+            retry_client = RetryClient(session,raise_for_status=False)
+            try:
+                async with retry_client.post(
+                    self._splunk_ack_url,
+                    verify_ssl=self.get_verify_tls(),
+                    headers=self._ack_status_headers(channel),
+                    retry_options=retry_options,
+                    params={"channel":channel},
+                    data=request_body,
+                ) as response:
+                    response_body = await response.text()
+
+                if not 200 <= response.status < 300:
+                    raise _HecAcknowledgmentStatusError(
+                        "acknowledgment request rejected",
+                        response.status in self.retry_http_status_codes,
+                    )
+
+                try:
+                    response_data = json.loads(response_body)
+                    statuses = response_data["acks"]
+                    if not isinstance(statuses,dict):
+                        raise TypeError
+                    parsed = {}
+                    for ack_id in ack_ids:
+                        acknowledged = statuses[str(ack_id)]
+                        if not isinstance(acknowledged,bool):
+                            raise TypeError
+                        parsed[ack_id] = acknowledged
+                except (KeyError,TypeError,ValueError) as error:
+                    raise _HecAcknowledgmentStatusError(
+                        "malformed acknowledgment response",
+                        True,
+                    ) from error
+                return parsed
+            except asyncio.CancelledError:
+                raise
+            except _HecAcknowledgmentStatusError:
+                raise
+            except asyncio.TimeoutError as error:
+                raise _HecAcknowledgmentStatusError(
+                    "acknowledgment request timed out",
+                    True,
+                ) from error
+            except ClientConnectionError as error:
+                raise _HecAcknowledgmentStatusError(
+                    "acknowledgment connection failed",
+                    True,
+                ) from error
+            except ClientPayloadError as error:
+                raise _HecAcknowledgmentStatusError(
+                    "acknowledgment response read failed",
+                    True,
+                ) from error
+            except Exception as error:
+                raise _HecAcknowledgmentStatusError(
+                    "acknowledgment transport failed",
+                    False,
+                ) from error
+            finally:
+                await retry_client.close()
+
+    def _pending_ack_failures(self,category,retryable):
+        """Return deterministic bounded failures for every pending ACK ID."""
+
+        pending = sorted(
+            self._ack_pending.values(),
+            key=lambda result:(result.batch_index,result.ack_id),
+        )
+        return [
+            HecAcknowledgmentFailure(
+                batch_index=result.batch_index,
+                event_count=result.event_count,
+                ack_id=result.ack_id,
+                category=category,
+                retryable=retryable,
+            )
+            for result in pending
+        ]
+
+    async def _poll_acknowledgments(self,timeout,poll_interval):
+        """Poll pending ACK IDs until confirmed or the bounded deadline ends."""
+
+        results = list(self._ack_deferred_results)
+        if not self._ack_pending:
+            return tuple(
+                sorted(
+                    results,
+                    key=lambda result:(result.batch_index,result.ack_id),
+                )
+            )
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while self._ack_pending:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise HecAcknowledgmentError(
+                    results,
+                    self._pending_ack_failures(
+                        "acknowledgment timed out",
+                        True,
+                    ),
+                )
+
+            ack_ids = tuple(
+                sorted(
+                    self._ack_pending,
+                    key=lambda ack_id:(
+                        self._ack_pending[ack_id].batch_index,
+                        ack_id,
+                    ),
+                )
+            )
+            request_uses_remaining_deadline = remaining <= 30.0
+            try:
+                statuses = await asyncio.wait_for(
+                    self._http_ack_status_task(
+                        ack_ids,
+                        self._get_ack_channel(),
+                        min(30.0,remaining),
+                    ),
+                    timeout=remaining,
+                )
+            except asyncio.CancelledError:
+                raise
+            except asyncio.TimeoutError as error:
+                raise HecAcknowledgmentError(
+                    results,
+                    self._pending_ack_failures(
+                        "acknowledgment timed out",
+                        True,
+                    ),
+                ) from error
+            except _HecAcknowledgmentStatusError as error:
+                category = error.category
+                if (
+                    request_uses_remaining_deadline
+                    and category == "acknowledgment request timed out"
+                ):
+                    category = "acknowledgment timed out"
+                raise HecAcknowledgmentError(
+                    results,
+                    self._pending_ack_failures(
+                        category,
+                        error.retryable,
+                    ),
+                ) from error
+
+            for ack_id in ack_ids:
+                if statuses[ack_id]:
+                    pending = self._ack_pending.pop(ack_id)
+                    result = HecAcknowledgmentResult(
+                        batch_index=pending.batch_index,
+                        event_count=pending.event_count,
+                        ack_id=pending.ack_id,
+                        acknowledged=True,
+                    )
+                    results.append(result)
+                    self._ack_deferred_results.append(result)
+
+            if self._ack_pending:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    continue
+                await asyncio.sleep(min(poll_interval,remaining))
+
+        return tuple(
+            sorted(results,key=lambda result:(result.batch_index,result.ack_id))
+        )
+
+    async def _post_batch_ack(self,timeout,poll_interval):
+        """Send queued ACK batches, then confirm every pending ACK ID."""
+
+        delivery_failures = list(self._ack_deferred_failures)
+        deliveries = tuple()
+        if not self.post_queue.is_empty:
+            try:
+                deliveries = await self._post_batch_strict(
+                    ack_channel=self._get_ack_channel(),
+                )
+            except HecBatchDeliveryError as error:
+                deliveries = error.results
+                for failure in error.failures:
+                    converted = self._ack_failure_from_delivery(failure)
+                    if converted is not None:
+                        delivery_failures.append(converted)
+
+        delivery_failures.extend(self._register_ack_deliveries(deliveries))
+
+        try:
+            results = await self._poll_acknowledgments(
+                timeout,
+                poll_interval,
+            )
+        except asyncio.CancelledError:
+            self._ack_deferred_failures.clear()
+            self._ack_deferred_failures.extend(delivery_failures)
+            raise
+        except HecAcknowledgmentError as error:
+            self._ack_deferred_failures.clear()
+            self._ack_deferred_results.clear()
+            raise HecAcknowledgmentError(
+                error.results,
+                delivery_failures + list(error.failures),
+            ) from error
+
+        if delivery_failures:
+            self._ack_deferred_failures.clear()
+            self._ack_deferred_results.clear()
+            raise HecAcknowledgmentError(results,delivery_failures)
+        self._ack_deferred_failures.clear()
+        self._ack_deferred_results.clear()
+        return results
     
      # ASync Web Get Method Specific for Checking HEC Service Health
     async def _http_health_task(self,url):
@@ -711,6 +1224,12 @@ class SplunkHecAio:
         # without changing the raw batch lists stored in the legacy queue.
         self._strict_batch_metadata = {}
         self._strict_next_batch_index = 0
+        # ACK mode is additive and lazy so compatible/strict-only senders keep
+        # their released request-channel behavior and public results unchanged.
+        self._ack_channel = None
+        self._ack_pending = {}
+        self._ack_deferred_failures = []
+        self._ack_deferred_results = []
 
         # Set Default batch max size for max bytes for the HTTP Endpoint.
         # Auto flush will occur if next event payload will exceed limit.
@@ -799,6 +1318,21 @@ class SplunkHecAio:
         url = "%s://%s:%d/services/collector/health" % (http_header,self.host,self._port)
 
         return url
+
+    @property
+    def _splunk_ack_url(self):
+        """Return the documented HEC indexer ACK status URL."""
+
+        if self.get_https():
+            http_header = "https"
+        else:
+            http_header = "http"
+
+        return "%s://%s:%d/services/collector/ack" % (
+            http_header,
+            self.host,
+            self._port,
+        )
 
     @property
     def splunk_headers(self):
@@ -1437,6 +1971,53 @@ class SplunkHecAio:
             return tuple()
         return await self._post_batch_strict()
 
+    def flush_ack(self,timeout=300.0,poll_interval=10.0):
+        """Flush ACK-mode payloads and wait for indexer acknowledgment.
+
+        Returns:
+            tuple: One HecAcknowledgmentResult for every confirmed batch.
+        Raises:
+            HecAcknowledgmentError: One or more sent batches remain unconfirmed.
+
+        Notes:
+            A timeout does not resend an accepted batch. Call flush_ack() again
+            to resume polling its pending acknowledgment identifier.
+        """
+
+        timeout,poll_interval = self._validate_ack_polling(
+            timeout,
+            poll_interval,
+        )
+        return asyncio.run(
+            self.flush_ack_async(
+                timeout=timeout,
+                poll_interval=poll_interval,
+            )
+        )
+
+    async def flush_ack_async(self,timeout=300.0,poll_interval=10.0):
+        """Flush ACK-mode payloads from an existing event loop."""
+
+        timeout,poll_interval = self._validate_ack_polling(
+            timeout,
+            poll_interval,
+        )
+        if not self.payload_queue.is_empty:
+            self.post_queue.enqueue(
+                [
+                    self.payload_queue.dequeue()
+                    for _ in range(self.payload_queue.size)
+                ]
+            )
+        if (
+            self.post_queue.is_empty
+            and not self._ack_pending
+            and not self._ack_deferred_failures
+            and not self._ack_deferred_results
+        ):
+            return tuple()
+        return await self._post_batch_ack(timeout,poll_interval)
+
     def post_data_strict(self,payload):
         """Queue one payload and propagate failures from any automatic flush.
 
@@ -1485,6 +2066,58 @@ class SplunkHecAio:
             # propagate a previous batch failure or cancellation.
             self.payload_queue.enqueue(payload)
             return await self._post_batch_strict()
+
+        self.payload_queue.enqueue(payload)
+        return tuple()
+
+    def post_data_ack(self,payload,timeout=300.0,poll_interval=10.0):
+        """Queue one payload and confirm batches sent by an automatic flush.
+
+        Returns:
+            tuple: Confirmed ACK results from an automatic flush, or an empty
+                tuple when no HTTP request was needed yet.
+        Raises:
+            HecAcknowledgmentError: A sent batch remains unconfirmed.
+
+        Notes:
+            Finish an ACK-mode sequence with flush_ack(). Do not mix ACK and
+            other post methods in the same queued sequence.
+        """
+
+        timeout,poll_interval = self._validate_ack_polling(
+            timeout,
+            poll_interval,
+        )
+        return asyncio.run(
+            self.post_data_ack_async(
+                payload,
+                timeout=timeout,
+                poll_interval=poll_interval,
+            )
+        )
+
+    async def post_data_ack_async(
+        self,
+        payload,
+        timeout=300.0,
+        poll_interval=10.0,
+    ):
+        """Queue one ACK-mode payload without starting a new event loop."""
+
+        timeout,poll_interval = self._validate_ack_polling(
+            timeout,
+            poll_interval,
+        )
+        payload,should_flush = self._prepare_payload_for_queue(
+            payload,
+            strict=True,
+        )
+
+        if should_flush:
+            # Retain the triggering payload before delivery can propagate a
+            # previous batch failure, timeout, or cancellation.
+            self.payload_queue.enqueue(payload)
+            return await self._post_batch_ack(timeout,poll_interval)
 
         self.payload_queue.enqueue(payload)
         return tuple()
