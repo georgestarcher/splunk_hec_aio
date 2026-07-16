@@ -148,7 +148,7 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
                 with self.assertRaises(live_hec_smoke.SmokeTestError):
                     live_hec_smoke.match_count(result)
 
-    def test_send_uses_public_class_without_real_network_access(self):
+    def test_send_batches_three_positioned_events_without_real_network_access(self):
         environment = valid_environment()
         sender = MagicMock()
         with (
@@ -157,7 +157,7 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
             ) as sender_class,
             patch.object(live_hec_smoke.time, "time", return_value=1.25),
         ):
-            live_hec_smoke.send_event(environment)
+            live_hec_smoke.send_batch(environment)
 
         sender_class.assert_called_once_with("splunk.example.com", "hec-token")
         sender.set_port.assert_called_once_with(443)
@@ -165,10 +165,21 @@ class TestLiveHecSmokeHelper(unittest.TestCase):
         sender.set_index.assert_called_once_with("ci_index")
         sender.set_source.assert_called_once_with("github-actions")
         sender.set_sourcetype.assert_called_once_with("splunk_hec_aio_ci")
-        payload = sender.post_data.call_args.args[0]
-        self.assertEqual(payload["time"], "1.25")
-        self.assertEqual(payload["event"]["ci_test_id"], "gha-123-1-abc")
-        self.assertEqual(payload["event"]["repository"], "owner/repository")
+        self.assertEqual(sender.post_data.call_count, 3)
+        payloads = [call.args[0] for call in sender.post_data.call_args_list]
+        self.assertEqual([payload["time"] for payload in payloads], ["1.25"] * 3)
+        self.assertEqual(
+            [payload["event"]["ci_test_id"] for payload in payloads],
+            ["gha-123-1-abc"] * 3,
+        )
+        self.assertEqual(
+            [payload["event"]["batch_position"] for payload in payloads],
+            [1, 2, 3],
+        )
+        self.assertEqual(
+            [payload["event"]["repository"] for payload in payloads],
+            ["owner/repository"] * 3,
+        )
         sender.flush.assert_called_once_with()
 
 
@@ -194,12 +205,18 @@ class TestLiveIntegrationPolicy(unittest.TestCase):
                 reference = line.split("@", 1)[1].split()[0]
                 self.assertRegex(reference, r"^[0-9a-f]{40}$")
 
-    def test_query_template_has_explicit_bounds_and_zero_match_aggregate(self):
+    def test_query_requires_three_separately_indexed_batch_positions(self):
         query = QUERY_PATH.read_text(encoding="utf-8")
 
         self.assertIn('earliest_time: "-10m"', query)
         self.assertIn('latest_time: "now"', query)
+        self.assertIn(
+            "stats count as event_count dc(batch_position) as batch_position_count",
+            query,
+        )
+        self.assertIn("event_count >= 3 AND batch_position_count = 3", query)
         self.assertIn("| stats count as matched", query)
+        self.assertIn("    - batch_position", query)
         self.assertIn("allow_index_wildcard: false", query)
 
 

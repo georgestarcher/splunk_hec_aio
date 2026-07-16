@@ -5,6 +5,8 @@ search: |
   search index=__SPLUNK_HEC_INDEX__
     sourcetype=__SPLUNK_HEC_SOURCETYPE__
     ci_test_id="__SPLUNK_HEC_TEST_ID__"
+  | stats count as event_count dc(batch_position) as batch_position_count
+  | where event_count >= 3 AND batch_position_count = 3
   | stats count as matched
 
 dispatch:
@@ -14,6 +16,7 @@ dispatch:
   status_buckets: 0
   required_fields:
     - ci_test_id
+    - batch_position
 
 results:
   endpoint: auto
