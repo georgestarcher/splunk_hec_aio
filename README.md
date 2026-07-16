@@ -103,6 +103,20 @@ methods before flushing. See the
 [Delivery modes Wiki guide](https://github.com/georgestarcher/splunk_hec_aio/wiki/Delivery-Modes)
 for result fields, exceptions, retries, cancellation, and examples.
 
+Applications that already run an event loop should use the matching async
+entry points instead of the synchronous methods:
+
+```python
+await sender.post_data_async(event)
+await sender.flush_async()
+```
+
+Async strict callers use `post_data_strict_async()` and
+`flush_strict_async()`. Connectivity checks likewise have
+`check_connectivity_async()`. The synchronous API remains unchanged; choose
+one sync or async style for a queued sequence. The Wiki guide covers both
+patterns in detail.
+
 ## Compatibility and project documentation
 
 The immutable v2.1.2 release preserves the released public API and existing

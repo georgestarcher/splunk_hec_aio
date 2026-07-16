@@ -9,6 +9,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- Additive `check_connectivity_async()`, `post_data_async()`, `flush_async()`,
+  `post_data_strict_async()`, and `flush_strict_async()` entry points for
+  applications that already run an event loop. Existing synchronous names,
+  signatures, defaults, return values, and event-loop behavior remain
+  unchanged.
 - Additive `post_data_strict()` and `flush_strict()` delivery APIs with
   structured per-batch HEC results, bounded and token-redacted response
   context, explicit connect/read/total timeouts, deterministic retryability,

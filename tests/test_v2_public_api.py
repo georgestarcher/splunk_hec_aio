@@ -50,7 +50,15 @@ class TestV2PublicApi(unittest.TestCase):
         )
         self.assertEqual(
             set(actual_members) - set(expected_members),
-            {"flush_strict", "post_data_strict"},
+            {
+                "check_connectivity_async",
+                "flush_async",
+                "flush_strict",
+                "flush_strict_async",
+                "post_data_async",
+                "post_data_strict",
+                "post_data_strict_async",
+            },
         )
 
     def test_v3_strict_delivery_types_are_available_from_nested_module(self):

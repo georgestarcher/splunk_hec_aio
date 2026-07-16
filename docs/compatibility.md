@@ -66,10 +66,13 @@ remain additive and opt-in in v2. Existing synchronous methods retain their
 signatures, defaults, return values, and exception behavior.
 
 The v3 strict delivery API follows this rule by adding `post_data_strict()` and
-`flush_strict()`. The legacy `post_data()` and `flush()` defaults remain
-unchanged. Strict callers opt into explicit timeouts, structured per-batch
-results, and propagated aggregate failures; callers that do not select the new
-methods retain the compatibility baseline.
+`flush_strict()`. Async applications can opt into
+`check_connectivity_async()`, `post_data_async()`, `flush_async()`,
+`post_data_strict_async()`, and `flush_strict_async()` so they await the same
+internals without starting another event loop. The legacy synchronous methods
+and defaults remain unchanged. Strict callers opt into explicit timeouts,
+structured per-batch results, and propagated aggregate failures; callers that
+do not select the new methods retain the compatibility baseline.
 
 ## Running the baseline
 
