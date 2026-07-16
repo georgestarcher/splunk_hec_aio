@@ -9,6 +9,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- Additive `post_data_ack()` and `flush_ack()` indexer-acknowledgment APIs, with
+  matching async entry points, stable per-sender channels, structured confirmed
+  results and bounded failures, configurable polling deadlines, immediate
+  removal of confirmed IDs, and resumable unconfirmed IDs after timeout or
+  cancellation without automatic event resend. Existing compatible and strict
+  delivery methods remain unchanged. General ACK use is documented as Splunk
+  Enterprise-only, with Splunk Cloud Platform limited to its AWS Kinesis Data
+  Firehose integration.
 - Additive `check_connectivity_async()`, `post_data_async()`, `flush_async()`,
   `post_data_strict_async()`, and `flush_strict_async()` entry points for
   applications that already run an event loop. Existing synchronous names,

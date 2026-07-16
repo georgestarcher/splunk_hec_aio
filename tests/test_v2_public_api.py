@@ -52,9 +52,13 @@ class TestV2PublicApi(unittest.TestCase):
             set(actual_members) - set(expected_members),
             {
                 "check_connectivity_async",
+                "flush_ack",
+                "flush_ack_async",
                 "flush_async",
                 "flush_strict",
                 "flush_strict_async",
+                "post_data_ack",
+                "post_data_ack_async",
                 "post_data_async",
                 "post_data_strict",
                 "post_data_strict_async",
@@ -68,6 +72,13 @@ class TestV2PublicApi(unittest.TestCase):
         self.assertTrue(issubclass(module.HecTransportError, module.HecDeliveryError))
         self.assertTrue(
             issubclass(module.HecBatchDeliveryError, module.HecDeliveryError)
+        )
+
+    def test_v3_acknowledgment_types_are_available_from_nested_module(self):
+        self.assertTrue(inspect.isclass(module.HecAcknowledgmentResult))
+        self.assertTrue(inspect.isclass(module.HecAcknowledgmentFailure))
+        self.assertTrue(
+            issubclass(module.HecAcknowledgmentError, module.HecDeliveryError)
         )
 
     def test_v3_development_version_is_exposed_from_the_runtime_module(self):

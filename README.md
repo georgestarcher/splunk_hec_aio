@@ -103,6 +103,29 @@ methods before flushing. See the
 [Delivery modes Wiki guide](https://github.com/georgestarcher/splunk_hec_aio/wiki/Delivery-Modes)
 for result fields, exceptions, retries, cancellation, and examples.
 
+Splunk Enterprise users whose HEC token has indexer acknowledgment enabled can
+opt into confirmation that each accepted batch reached the configured
+replication target:
+
+```python
+confirmed = sender.post_data_ack(event)
+confirmed += sender.flush_ack()
+```
+
+ACK mode is separate from compatible and strict delivery. It uses one stable
+channel per sender, returns structured `HecAcknowledgmentResult` values, and
+raises `HecAcknowledgmentError` with bounded per-batch failures when an ID
+cannot be confirmed. A timeout keeps the pending ACK ID; calling `flush_ack()`
+again resumes polling without automatically resending the accepted batch.
+Splunk documents general indexer acknowledgment as Splunk Enterprise-only;
+Splunk Cloud Platform supports it only for the AWS Kinesis Data Firehose
+integration. See the
+[Indexer acknowledgment Wiki guide](https://github.com/georgestarcher/splunk_hec_aio/wiki/Indexer-Acknowledgment)
+and Splunk's
+[indexer acknowledgment documentation](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.2/get-data-with-http-event-collector/about-http-event-collector-indexer-acknowledgment)
+before enabling this mode. Do not mix ACK and other delivery methods in one
+queued sequence.
+
 Applications that already run an event loop should use the matching async
 entry points instead of the synchronous methods:
 
@@ -112,7 +135,8 @@ await sender.flush_async()
 ```
 
 Async strict callers use `post_data_strict_async()` and
-`flush_strict_async()`. Connectivity checks likewise have
+`flush_strict_async()`. ACK callers use `post_data_ack_async()` and
+`flush_ack_async()`. Connectivity checks likewise have
 `check_connectivity_async()`. The synchronous API remains unchanged; choose
 one sync or async style for a queued sequence. The Wiki guide covers both
 patterns in detail.
@@ -154,6 +178,7 @@ The [project Wiki](https://github.com/georgestarcher/splunk_hec_aio/wiki)
 contains the detailed user documentation:
 
 - [Delivery modes](https://github.com/georgestarcher/splunk_hec_aio/wiki/Delivery-Modes)
+- [Indexer acknowledgment](https://github.com/georgestarcher/splunk_hec_aio/wiki/Indexer-Acknowledgment)
 - [Configuration and batching](https://github.com/georgestarcher/splunk_hec_aio/wiki/Configuration-and-Batching)
 - [Connectivity and troubleshooting](https://github.com/georgestarcher/splunk_hec_aio/wiki/Connectivity-and-Troubleshooting)
 
