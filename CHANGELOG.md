@@ -51,6 +51,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Closed compatible GET and POST retry clients consistently after success,
+  request exceptions, and cancellation without changing their public return,
+  exception, request, retry, or timeout behavior.
 - Changed `check_connectivity()` from an invalid event POST to an
   unauthenticated GET of Splunk's documented HEC health endpoint, and clarified
   that service health does not validate a token or prove indexed delivery.

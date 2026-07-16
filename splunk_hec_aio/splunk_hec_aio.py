@@ -332,16 +332,17 @@ class SplunkHecAio:
 
         async with ClientSession() as session:
             retry_client = RetryClient(session,self.http_raise_for_status)
-
-            while not work_queue.empty():
-                try:
-                    url = await work_queue.get()
-                    async with retry_client.get(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options) as response:
-                        await response.text()   
-                    await retry_client.close()
-                    return(response.status,response.reason) 
-                except Exception as e:
-                    self.log.exception(e)
+            try:
+                while not work_queue.empty():
+                    try:
+                        url = await work_queue.get()
+                        async with retry_client.get(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options) as response:
+                            await response.text()
+                        return(response.status,response.reason)
+                    except Exception as e:
+                        self.log.exception(e)
+            finally:
+                await retry_client.close()
 
     # ASync Web Post Method
     async def _http_post_task(self,url,work_queue):
@@ -351,40 +352,40 @@ class SplunkHecAio:
 
         async with ClientSession() as session:
             retry_client = RetryClient(session,self.http_raise_for_status)
+            try:
+                while not work_queue.empty():
+                    try:
+                        payload = await work_queue.get()
+                        if isinstance(payload, list) and len(payload) == 0:
+                            continue
 
-            while not work_queue.empty():
-                try:
-                    payload = await work_queue.get()
-                    if isinstance(payload, list) and len(payload) == 0:
-                        continue
-                    
-                    self.log.debug("Payload JSON Mode:{0} Events:{1}".format(self._payload_mode_json,len(payload)))
-                    response = ""
+                        self.log.debug("Payload JSON Mode:{0} Events:{1}".format(self._payload_mode_json,len(payload)))
+                        response = ""
 
-                    if self._payload_mode_json:
-                         # If True payload is expected to be form application/json
-                        payload_batch = "".join(json.dumps(event) for event in payload)
-                        payload_string = gzip.compress(payload_batch.encode('utf-8'))
-                        if payload_string:
-                            async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
-                                await response.text()               
+                        if self._payload_mode_json:
+                             # If True payload is expected to be form application/json
+                            payload_batch = "".join(json.dumps(event) for event in payload)
+                            payload_string = gzip.compress(payload_batch.encode('utf-8'))
+                            if payload_string:
+                                async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
+                                    await response.text()
+                                if response.status == 400:
+                                    raise(ValueError(response.text))
+                        else:
+                            # If False payload is expected to be form text/plain
+                            payload_batch = "".join(payload)
+                            payload_string = gzip.compress(payload_batch.encode('utf-8'))
+
+                            if payload_string:
+                                async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
+                                    await response.text()
                             if response.status == 400:
                                 raise(ValueError(response.text))
-                    else:
-                        # If False payload is expected to be form text/plain
-                        payload_batch = "".join(payload)
-                        payload_string = gzip.compress(payload_batch.encode('utf-8'))
-                        
-                        if payload_string:
-                            async with retry_client.post(url,verify_ssl=self.get_verify_tls(),headers=self.splunk_headers,retry_options=retry_options,params=self.splunk_params,data=payload_string) as response:
-                                await response.text()               
-                        if response.status == 400:
-                            raise(ValueError(response.text))
-                except Exception as e:
-                    self.log.exception(e)
-                    raise e
-
-        await retry_client.close()
+                    except Exception as e:
+                        self.log.exception(e)
+                        raise e
+            finally:
+                await retry_client.close()
 
         return(response.status,response.reason) 
 
