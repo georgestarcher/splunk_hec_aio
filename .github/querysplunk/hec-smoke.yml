@@ -5,8 +5,13 @@ search: |
   search index=__SPLUNK_HEC_INDEX__
     sourcetype=__SPLUNK_HEC_SOURCETYPE__
     ci_test_id="__SPLUNK_HEC_TEST_ID__"
-  | stats count as event_count dc(batch_position) as batch_position_count
-  | where event_count >= 3 AND batch_position_count = 3
+  | stats count as event_count dc(batch_position) as position_count by send_shape
+  | eval shape_verified=case(
+      send_shape="single" AND event_count >= 1 AND position_count = 1, 1,
+      send_shape="batch" AND event_count >= 3 AND position_count = 3, 1,
+      true(), 0)
+  | stats count as shape_count min(shape_verified) as all_verified
+  | where shape_count = 2 AND all_verified = 1
   | stats count as matched
 
 dispatch:
@@ -16,6 +21,7 @@ dispatch:
   status_buckets: 0
   required_fields:
     - ci_test_id
+    - send_shape
     - batch_position
 
 results:

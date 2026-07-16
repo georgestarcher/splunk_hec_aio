@@ -204,8 +204,8 @@ def match_count(result_path: Path) -> int:
     return count
 
 
-def send_batch(environ: Mapping[str, str]) -> None:
-    """Send one uniquely identifiable three-event batch through the public class."""
+def send_single_and_batch(environ: Mapping[str, str]) -> None:
+    """Send one standalone event and one three-event batch through the public class."""
 
     config = load_hec_config(environ)
     logging.basicConfig(level=logging.ERROR)
@@ -217,15 +217,28 @@ def send_batch(environ: Mapping[str, str]) -> None:
     sender.set_source(config.source)
     sender.set_sourcetype(config.sourcetype)
 
+    common_event = {
+        "ci_test_id": config.test_id,
+        "repository": environ.get("GITHUB_REPOSITORY", ""),
+        "run_id": environ.get("GITHUB_RUN_ID", ""),
+        "run_attempt": environ.get("GITHUB_RUN_ATTEMPT", ""),
+        "commit": environ.get("GITHUB_SHA", ""),
+    }
+    single_event = {
+        **common_event,
+        "send_shape": "single",
+        "batch_position": 1,
+        "message": "splunk_hec_aio live integration single-event test",
+    }
+    sender.post_data({"time": str(round(time.time(), 3)), "event": single_event})
+    sender.flush()
+
     for batch_position in range(1, 4):
         event = {
-            "ci_test_id": config.test_id,
+            **common_event,
+            "send_shape": "batch",
             "batch_position": batch_position,
             "message": "splunk_hec_aio live integration batch test",
-            "repository": environ.get("GITHUB_REPOSITORY", ""),
-            "run_id": environ.get("GITHUB_RUN_ID", ""),
-            "run_attempt": environ.get("GITHUB_RUN_ATTEMPT", ""),
-            "commit": environ.get("GITHUB_SHA", ""),
         }
         sender.post_data({"time": str(round(time.time(), 3)), "event": event})
     sender.flush()
@@ -235,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("preflight", help="validate protected environment values")
-    subparsers.add_parser("send", help="send one live HEC smoke batch")
+    subparsers.add_parser("send", help="send live single-event and batch checks")
     render = subparsers.add_parser("render-query", help="render the search YAML")
     render.add_argument("template", type=Path)
     render.add_argument("output", type=Path)
@@ -251,8 +264,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             validate_preflight(os.environ)
             print("Live integration configuration validated.")
         elif args.command == "send":
-            send_batch(os.environ)
-            print("HEC batch send completed; awaiting search verification.")
+            send_single_and_batch(os.environ)
+            print("HEC single and batch sends completed; awaiting verification.")
         elif args.command == "render-query":
             render_query(args.template, args.output, os.environ)
             print("Live search configuration rendered.")
