@@ -581,6 +581,7 @@ class TestStrictDelivery(unittest.TestCase):
 
         deliveries = self.sender.flush_strict()
 
+        self.assertEqual([item.batch_index for item in deliveries], [0, 1])
         self.assertEqual([item.event_count for item in deliveries], [1, 1])
         self.assertTrue(self.sender.post_queue.is_empty)
         self.assertTrue(self.sender.payload_queue.is_empty)
@@ -596,9 +597,17 @@ class TestStrictDelivery(unittest.TestCase):
         deliveries = self.sender.post_data_strict(second)
 
         self.assertEqual(len(deliveries), 1)
+        self.assertEqual(deliveries[0].batch_index, 0)
         self.assertEqual(deliveries[0].event_count, 1)
         self.assertTrue(self.sender.post_queue.is_empty)
         self.assertEqual(self.sender.payload_queue.elements, [second])
+
+        final_deliveries = self.sender.flush_strict()
+
+        self.assertEqual(len(final_deliveries), 1)
+        self.assertEqual(final_deliveries[0].batch_index, 1)
+        self.assertTrue(self.sender.post_queue.is_empty)
+        self.assertTrue(self.sender.payload_queue.is_empty)
 
     def test_strict_post_rejects_wrong_payload_type_without_silent_skip(self):
         with self.assertRaisesRegex(

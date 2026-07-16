@@ -540,22 +540,11 @@ class SplunkHecAio:
             else:
                 retained_indexes.append(None)
         self._strict_batch_metadata.clear()
-        next_batch_index = (
-            max(
-                (
-                    batch_index
-                    for batch_index in retained_indexes
-                    if batch_index is not None
-                ),
-                default=-1,
-            )
-            + 1
-        )
         batch_indexes = []
         for retained_index in retained_indexes:
             if retained_index is None:
-                retained_index = next_batch_index
-                next_batch_index += 1
+                retained_index = self._strict_next_batch_index
+                self._strict_next_batch_index += 1
             batch_indexes.append(retained_index)
 
         max_concurrency = self.get_concurrent_post_limit()
@@ -715,6 +704,7 @@ class SplunkHecAio:
         # Retained strict batches keep their original public result index
         # without changing the raw batch lists stored in the legacy queue.
         self._strict_batch_metadata = {}
+        self._strict_next_batch_index = 0
 
         # Set Default batch max size for max bytes for the HTTP Endpoint.
         # Auto flush will occur if next event payload will exceed limit.
