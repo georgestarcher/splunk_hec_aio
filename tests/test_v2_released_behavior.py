@@ -162,29 +162,45 @@ class TestV2ReleasedBehavior(unittest.TestCase):
         self.assertEqual(self.sender.payload_queue.size, 1)
         self.assertEqual(self.sender.payload_queue.first, payload)
 
-    def test_post_data_records_released_false_value_filtering(self):
-        # This describes v2.1.1; issue #17 proposes an explicit correction.
+    def test_post_data_preserves_false_values_and_removes_only_empty_values(self):
+        # Issue #17 intentionally corrects v2's truthiness-based filtering.
         payload = {
             "event": {"count": 0},
             "zero": 0,
+            "zero_float": 0.0,
             "false": False,
+            "true": True,
             "empty": "",
             "empty_list": [],
+            "empty_tuple": (),
             "empty_dict": {},
             "none": None,
         }
 
         self.sender.post_data(payload)
 
-        self.assertEqual(self.sender.payload_queue.first, {"event": {"count": 0}})
+        self.assertIsNot(self.sender.payload_queue.first, payload)
+        self.assertEqual(
+            self.sender.payload_queue.first,
+            {
+                "event": {"count": 0},
+                "zero": 0,
+                "zero_float": 0.0,
+                "false": False,
+                "true": True,
+            },
+        )
         self.assertEqual(
             payload,
             {
                 "event": {"count": 0},
                 "zero": 0,
+                "zero_float": 0.0,
                 "false": False,
+                "true": True,
                 "empty": "",
                 "empty_list": [],
+                "empty_tuple": (),
                 "empty_dict": {},
                 "none": None,
             },

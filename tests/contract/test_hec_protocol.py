@@ -248,8 +248,7 @@ class TestHecProtocol(unittest.TestCase):
             },
         )
 
-    def test_json_metadata_setters_record_released_caller_mutation(self):
-        # Issue #17 owns any change to this released mutation behavior.
+    def test_json_metadata_setters_do_not_mutate_caller_payload(self):
         self.sender.set_pop_empty_fields(False)
         self.sender.set_index("main")
         self.sender.set_sourcetype("example:json")
@@ -259,9 +258,13 @@ class TestHecProtocol(unittest.TestCase):
 
         self.sender.post_data(payload)
 
-        self.assertIs(self.sender.payload_queue.first, payload)
+        self.assertIsNot(self.sender.payload_queue.first, payload)
         self.assertEqual(
             payload,
+            {"event": {"message": "hello"}, "time": "1.25"},
+        )
+        self.assertEqual(
+            self.sender.payload_queue.first,
             {
                 "event": {"message": "hello"},
                 "time": "1.25",

@@ -13,6 +13,15 @@ import asyncio
 from aiohttp import ClientSession
 from aiohttp_retry import RetryClient, JitterRetry
 
+
+def _is_empty_json_value(value):
+    """Return whether a top-level JSON field is empty under the sender policy."""
+
+    return value is None or (
+        isinstance(value, (str, list, tuple, dict)) and not value
+    )
+
+
 # Class for Queue objects.
 class _SplunkQueue:
     """
@@ -540,7 +549,10 @@ class SplunkHecAio:
     def set_pop_empty_fields(self,value=True):
         """Set pop empty fields mode (bool).
 
-        This mode only works for payload mode (True) application/json. It is ignored for payload mode (False) text/plain.
+        This mode only works for payload mode (True) application/json. It removes
+        top-level None values and empty strings, lists, tuples, and dictionaries.
+        Numeric zero and False are preserved. It is ignored for payload mode
+        (False) text/plain.
 
         Parameters:
                 value (bool): Sets if empty/null fields are removed from the payload before posting.
@@ -1035,9 +1047,12 @@ class SplunkHecAio:
             self.log.warning("Skipping Payload: set_payload_json_format:%s expected type str received type %s",self.get_payload_json_format(),str(type(payload)))
             return
             
-        # Pop empty fields if feature enabled and Payload mode JSON is True.
-        if self._pop_empty_fields and self._payload_mode_json:
-            payload = {k:payload.get(k) for k,v in payload.items() if v}
+        # Work with our own top-level dictionary so configured metadata never
+        # mutates a caller-owned payload.
+        if self._payload_mode_json:
+            payload = payload.copy()
+            if self._pop_empty_fields:
+                payload = {k:v for k,v in payload.items() if not _is_empty_json_value(v)}
         json_format = self.get_payload_json_format()
 
         if json_format and self._host:

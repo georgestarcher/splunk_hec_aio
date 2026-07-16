@@ -31,6 +31,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Preserved top-level numeric zero and `False` values under the default
+  empty-field policy, and stopped configured JSON metadata from mutating
+  caller-owned payload dictionaries.
 - Corrected JSON-mode HEC batching to concatenate complete event envelopes as
   required by Splunk's wire protocol instead of wrapping each batch in a JSON
   array. Public methods, queueing, compression, and raw-mode framing are

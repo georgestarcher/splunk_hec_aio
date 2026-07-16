@@ -150,6 +150,13 @@ sender.set_source("aio_python")
 In JSON mode the client adds configured metadata to the HEC payload. In raw
 mode it adds the supported values to the request parameters.
 
+JSON mode queues its own top-level payload dictionary, so adding configured
+metadata does not modify the dictionary passed to `post_data`. With the default
+`set_pop_empty_fields(True)` policy, top-level `None` values and empty strings,
+lists, tuples, and dictionaries are removed. Meaningful values such as numeric
+zero and `False` are preserved. Call `set_pop_empty_fields(False)` to retain
+the empty values as well.
+
 When multiple JSON events are sent in one request, the v3 client follows
 Splunk's HEC batch format by concatenating complete event objects without
 wrapping them in a JSON array. See Splunk's
