@@ -243,8 +243,8 @@ def send_single_and_batch(environ: Mapping[str, str]) -> None:
             "batch_position": batch_position,
             "message": "splunk_hec_aio live integration batch test",
         }
-        sender.post_data({"time": str(round(time.time(), 3)), "event": event})
-    sender.flush()
+        sender.post_data_strict({"time": str(round(time.time(), 3)), "event": event})
+    sender.flush_strict()
 
 
 def build_parser() -> argparse.ArgumentParser:

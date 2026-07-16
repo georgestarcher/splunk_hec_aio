@@ -8,10 +8,82 @@ import json
 import logging
 import gzip
 import uuid
+from dataclasses import dataclass
+from typing import Optional
 
 import asyncio
-from aiohttp import ClientSession
+from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 from aiohttp_retry import RetryClient, JitterRetry
+
+
+@dataclass(frozen=True)
+class HecDeliveryResult:
+    """Structured outcome for one strict HEC batch request."""
+
+    batch_index: int
+    event_count: int
+    http_status: int
+    http_reason: str
+    hec_code: Optional[int]
+    hec_text: str
+    invalid_event_number: Optional[int]
+    accepted: bool
+    retryable: bool
+
+
+class HecDeliveryError(Exception):
+    """Base exception for strict HEC delivery failures."""
+
+
+class HecResponseError(HecDeliveryError):
+    """Raised when HEC returns a response that does not accept a batch."""
+
+    def __init__(self, result):
+        self.result = result
+        code = "unknown" if result.hec_code is None else result.hec_code
+        super().__init__(
+            "HEC rejected batch {0} ({1} event(s)): HTTP {2} {3}; "
+            "HEC code {4}: {5}".format(
+                result.batch_index,
+                result.event_count,
+                result.http_status,
+                result.http_reason,
+                code,
+                result.hec_text,
+            )
+        )
+
+
+class HecTransportError(HecDeliveryError):
+    """Raised when a strict HEC request cannot produce a response."""
+
+    def __init__(self, batch_index, event_count, category, retryable):
+        self.batch_index = batch_index
+        self.event_count = event_count
+        self.category = category
+        self.retryable = retryable
+        super().__init__(
+            "HEC {0} for batch {1} ({2} event(s))".format(
+                category,
+                batch_index,
+                event_count,
+            )
+        )
+
+
+class HecBatchDeliveryError(HecDeliveryError):
+    """Raised after strict concurrent delivery collects one or more failures."""
+
+    def __init__(self, results, failures):
+        self.results = tuple(results)
+        self.failures = tuple(failures)
+        super().__init__(
+            "HEC strict delivery failed for {0} batch request(s); "
+            "{1} batch request(s) succeeded".format(
+                len(self.failures),
+                len(self.results),
+            )
+        )
 
 
 def _is_empty_json_value(value):
@@ -166,6 +238,8 @@ class SplunkHecAio:
         post_data(dict OR str) returns(none) - posts JSON dictionary OR plain/text to configured Splunk HTTP API Endpoint
             NOTE: payload type is controlled by set_payload_json_format listed below and should be setup at instantiation
         flush() - returns(none) - required call before exiting your code to flush any remaining batched data
+        post_data_strict(dict OR str) - queues data with strict auto-flush failures enabled
+        flush_strict() - returns per-batch delivery results or raises HecBatchDeliveryError
         set_pop_empty_fields(bool) - returns(none) - accepts bool value to control if empty/null fields are removed. Default is True.
         get_pop_empty_fields() - returns(bool) - displays current value controlling removing empty/null fields
         set_payload_json_format(bool) - returns(none) - accepts bool value to control payload format is application/json (True) or text/plain (False). Default is True.
@@ -285,6 +359,180 @@ class SplunkHecAio:
         await retry_client.close()
 
         return(response.status,response.reason) 
+
+    def _strict_response_result(self,response_status,response_reason,response_body,batch_index,event_count):
+        """Parse one strict HEC response without retaining arbitrary body data."""
+
+        response_data = None
+        try:
+            candidate = json.loads(response_body)
+            if isinstance(candidate, dict):
+                response_data = candidate
+        except (TypeError, ValueError):
+            pass
+
+        hec_code = None
+        hec_text = "HEC returned an invalid JSON response"
+        invalid_event_number = None
+        if response_data is not None:
+            candidate_code = response_data.get("code")
+            if isinstance(candidate_code, int) and not isinstance(candidate_code, bool):
+                hec_code = candidate_code
+
+            candidate_text = response_data.get("text")
+            if isinstance(candidate_text, str):
+                hec_text = candidate_text
+            else:
+                hec_text = "HEC response did not include text"
+
+            candidate_invalid_event = response_data.get("invalid-event-number")
+            if isinstance(candidate_invalid_event, int) and not isinstance(candidate_invalid_event, bool):
+                invalid_event_number = candidate_invalid_event
+
+        hec_text = " ".join(hec_text.split())
+        if self.token:
+            hec_text = hec_text.replace(self.token,"[REDACTED]")
+        hec_text = hec_text[:256] or "HEC response text was empty"
+
+        http_reason = " ".join(str(response_reason or "").split())
+        if self.token:
+            http_reason = http_reason.replace(self.token,"[REDACTED]")
+        http_reason = http_reason[:80]
+
+        accepted_codes = {0,24,25}
+        accepted = 200 <= response_status < 300 and hec_code in accepted_codes
+        retryable_codes = {8,9,18,19,20,23,26,27}
+        retryable = (
+            not accepted
+            and (
+                response_status in self.retry_http_status_codes
+                or hec_code in retryable_codes
+            )
+        )
+
+        return HecDeliveryResult(
+            batch_index=batch_index,
+            event_count=event_count,
+            http_status=response_status,
+            http_reason=http_reason,
+            hec_code=hec_code,
+            hec_text=hec_text,
+            invalid_event_number=invalid_event_number,
+            accepted=accepted,
+            retryable=retryable,
+        )
+
+    async def _http_post_strict_task(self,url,payload,batch_index):
+        """Post one batch and return a structured result or raise a strict error."""
+
+        retry_options = JitterRetry(
+            attempts=self.http_retries,
+            statuses=self.retry_http_status_codes,
+            exceptions={asyncio.TimeoutError,ClientConnectionError},
+        )
+        timeout = ClientTimeout(total=30.0,connect=10.0,sock_read=30.0)
+        event_count = len(payload)
+
+        if self._payload_mode_json:
+            payload_batch = "".join(json.dumps(event) for event in payload)
+        else:
+            payload_batch = "".join(payload)
+        payload_string = gzip.compress(payload_batch.encode("utf-8"))
+
+        async with ClientSession(timeout=timeout) as session:
+            retry_client = RetryClient(session,raise_for_status=False)
+            try:
+                async with retry_client.post(
+                    url,
+                    verify_ssl=self.get_verify_tls(),
+                    headers=self.splunk_headers,
+                    retry_options=retry_options,
+                    params=self.splunk_params,
+                    data=payload_string,
+                ) as response:
+                    response_body = await response.text()
+
+                result = self._strict_response_result(
+                    response.status,
+                    response.reason,
+                    response_body,
+                    batch_index,
+                    event_count,
+                )
+                if not result.accepted:
+                    raise HecResponseError(result)
+                return result
+            except asyncio.CancelledError:
+                raise
+            except HecDeliveryError:
+                raise
+            except asyncio.TimeoutError as error:
+                raise HecTransportError(
+                    batch_index,
+                    event_count,
+                    "request timed out",
+                    True,
+                ) from error
+            except ClientConnectionError as error:
+                raise HecTransportError(
+                    batch_index,
+                    event_count,
+                    "connection failed",
+                    True,
+                ) from error
+            except Exception as error:
+                raise HecTransportError(
+                    batch_index,
+                    event_count,
+                    "transport failed",
+                    False,
+                ) from error
+            finally:
+                await retry_client.close()
+
+    async def _post_batch_strict(self):
+        """Post all completed batches and report every strict outcome."""
+
+        if self.post_queue.is_empty:
+            return tuple()
+
+        batches = [self.post_queue.dequeue() for _ in range(self.post_queue.size)]
+        tasks = [
+            asyncio.create_task(
+                self._http_post_strict_task(
+                    self.splunk_post_url,
+                    batch,
+                    batch_index,
+                )
+            )
+            for batch_index,batch in enumerate(batches)
+        ]
+        outcomes = await asyncio.gather(*tasks,return_exceptions=True)
+        results = []
+        failures = []
+
+        for batch_index,outcome in enumerate(outcomes):
+            if isinstance(outcome, asyncio.CancelledError):
+                raise outcome
+            if isinstance(outcome, HecDeliveryResult):
+                results.append(outcome)
+            elif isinstance(outcome, HecDeliveryError):
+                failures.append(outcome)
+            elif isinstance(outcome, Exception):
+                failures.append(
+                    HecTransportError(
+                        batch_index,
+                        len(batches[batch_index]),
+                        "transport failed",
+                        False,
+                    )
+                )
+            elif isinstance(outcome, BaseException):
+                raise outcome
+
+        if failures:
+            raise HecBatchDeliveryError(results,failures)
+        return tuple(results)
     
      # ASync Web Get Method Specific for Checking HEC Service Health
     async def _http_health_task(self,url):
@@ -349,6 +597,7 @@ class SplunkHecAio:
         self.http_raise_for_status = False
         self.http_retries = 3
         self.set_verify_tls()
+        self._strict_delivery = False
 
         # Set Default batch max size for max bytes for the HTTP Endpoint.
         # Auto flush will occur if next event payload will exceed limit.
@@ -994,6 +1243,60 @@ class SplunkHecAio:
 
         return
 
+    def flush_strict(self):
+        """Flush queued payloads with structured results and propagated failures.
+
+        Returns:
+            tuple: One HecDeliveryResult for every accepted batch request.
+        Raises:
+            HecBatchDeliveryError: One or more batch requests failed.
+
+        Notes:
+            Use post_data_strict() consistently for the same sender so any
+            automatic batch flush also uses strict delivery. Each HTTP attempt
+            has explicit 30-second total/read and 10-second connect timeouts.
+        """
+
+        if not self.payload_queue.is_empty:
+            self.post_queue.enqueue(
+                [
+                    self.payload_queue.dequeue()
+                    for _ in range(self.payload_queue.size)
+                ]
+            )
+        if self.post_queue.is_empty:
+            return tuple()
+        return asyncio.run(self._post_batch_strict())
+
+    def post_data_strict(self,payload):
+        """Queue one payload and propagate failures from any automatic flush.
+
+        Returns:
+            tuple: Results from an automatic flush, or an empty tuple when no
+                HTTP request was needed yet.
+        Raises:
+            HecBatchDeliveryError: An automatic strict batch flush failed.
+
+        Notes:
+            Finish a strict sequence with flush_strict(). Do not mix strict and
+            legacy post methods on the same queued sequence.
+        """
+
+        if self._payload_mode_json and type(payload) is not dict:
+            raise TypeError("Strict JSON payloads must be dictionaries.")
+        if not self._payload_mode_json and type(payload) is not str:
+            raise TypeError("Strict raw payloads must be strings.")
+
+        previous_strict_delivery = self._strict_delivery
+        self._strict_delivery = True
+        try:
+            results = self.post_data(payload)
+        finally:
+            self._strict_delivery = previous_strict_delivery
+        if results is None:
+            return tuple()
+        return results
+
     def post_data(self,payload):
         """Places the JSON/text payload into a batch queue for optimal HTTP Posting to Splunk.
 
@@ -1007,6 +1310,8 @@ class SplunkHecAio:
            Adding Splunk metafields like time are the responsiblity of the user.
            Example: {"time":str(round(time.time(),3))}
         """
+
+        strict_results = tuple()
 
         # Safety check to ensure payload form matches the intended operation mode
         if self._payload_mode_json and type(payload) is not dict:
@@ -1053,7 +1358,13 @@ class SplunkHecAio:
             # If self.concurrent_post_limit batches have accumulated post flush them to Splunk.
             if self.post_queue.size >= self.get_concurrent_post_limit():
                 self.log.debug("Auto Flush: Posting the Batch.")
-                asyncio.run(self._post_batch())
+                if self._strict_delivery:
+                    strict_results = asyncio.run(self._post_batch_strict())
+                else:
+                    asyncio.run(self._post_batch())
 
         # Add new payload to batch accumulation.
         self.payload_queue.enqueue(payload)
+
+        if self._strict_delivery:
+            return strict_results

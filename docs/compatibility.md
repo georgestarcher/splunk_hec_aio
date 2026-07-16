@@ -65,6 +65,12 @@ New async entry points, strict delivery results, and indexer acknowledgment must
 remain additive and opt-in in v2. Existing synchronous methods retain their
 signatures, defaults, return values, and exception behavior.
 
+The v3 strict delivery API follows this rule by adding `post_data_strict()` and
+`flush_strict()`. The legacy `post_data()` and `flush()` defaults remain
+unchanged. Strict callers opt into explicit timeouts, structured per-batch
+results, and propagated aggregate failures; callers that do not select the new
+methods retain the compatibility baseline.
+
 ## Running the baseline
 
 The compatibility suite uses `unittest` from the Python standard library so it

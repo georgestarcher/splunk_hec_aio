@@ -178,6 +178,60 @@ integration workflow proves indexing by searching for uniquely marked events.
 See Splunk's
 [HEC health endpoint documentation](https://help.splunk.com/en/splunk-enterprise/rest-api-reference/9.4/input-endpoints/input-endpoint-descriptions#servicescollectorhealth).
 
+### Strict delivery results
+
+The legacy `post_data()` and `flush()` methods keep their compatible behavior:
+they return `None`, and delivery failures may only be logged. V3 adds an
+explicit strict path for callers that need a result or exception:
+
+```python
+from splunk_hec_aio.splunk_hec_aio import (
+    HecBatchDeliveryError,
+    HecResponseError,
+    SplunkHecAio,
+)
+
+sender = SplunkHecAio("splunk.example", "token-from-secret-manager")
+
+try:
+    sender.post_data_strict({"event": "first"})
+    sender.post_data_strict({"event": "second"})
+    results = sender.flush_strict()
+except HecBatchDeliveryError as error:
+    for failure in error.failures:
+        if isinstance(failure, HecResponseError):
+            print(
+                failure.result.batch_index,
+                failure.result.http_status,
+                failure.result.hec_code,
+                failure.result.hec_text,
+            )
+    raise
+```
+
+Use `post_data_strict()` for every payload in a strict sequence and finish with
+`flush_strict()`. This ensures automatic size/concurrency flushes also
+propagate failures. A successful strict flush returns an immutable tuple with
+one `HecDeliveryResult` per HTTP batch. Each result reports the batch position,
+event count, HTTP status, HEC `code` and `text`, optional
+`invalid-event-number`, acceptance status, and whether a final failure is
+retryable. It never contains the submitted events, authorization header, or
+token. Response text is bounded and the configured token is redacted.
+
+Each strict HTTP attempt uses a 30-second total/read timeout and a 10-second
+connection timeout. Retryable transport failures and HTTP 408, 429, 500, 502,
+503, and 504 responses use the configured retry count. Retrying HEC delivery
+provides
+at-least-once behavior: if a connection fails after Splunk accepted a request,
+a retry can create duplicate events. Design events and downstream processing
+to tolerate duplicates. A successful HEC response confirms request acceptance,
+not searchable indexing; use protected search-backed validation or optional
+indexer acknowledgment when that stronger signal is required.
+
+These strict methods are synchronous and retain the existing `asyncio.run()`
+execution model. Async-friendly public entry points are tracked separately so
+the event-loop API can be reviewed without changing this delivery contract.
+
 ### 400 Bad Request
 
 If Splunk returns `400 Bad Request` while an index is configured, confirm that

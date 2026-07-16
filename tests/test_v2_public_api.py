@@ -34,12 +34,33 @@ class TestV2PublicApi(unittest.TestCase):
     def test_documented_nested_import_remains_available(self):
         self.assertIs(module.SplunkHecAio, SplunkHecAio)
 
-    def test_public_api_matches_v2_1_1_snapshot(self):
+    def test_v2_public_api_remains_present_with_approved_v3_additions(self):
         with FIXTURE.open(encoding="utf-8") as fixture_file:
             expected = json.load(fixture_file)
 
         self.assertEqual(expected.pop("baseline_version"), "2.1.1")
-        self.assertEqual(public_api_snapshot(), expected)
+        actual = public_api_snapshot()
+        expected_members = expected.pop("members")
+        actual_members = actual.pop("members")
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(
+            {name: actual_members[name] for name in expected_members},
+            expected_members,
+        )
+        self.assertEqual(
+            set(actual_members) - set(expected_members),
+            {"flush_strict", "post_data_strict"},
+        )
+
+    def test_v3_strict_delivery_types_are_available_from_nested_module(self):
+        self.assertTrue(inspect.isclass(module.HecDeliveryResult))
+        self.assertTrue(issubclass(module.HecDeliveryError, Exception))
+        self.assertTrue(issubclass(module.HecResponseError, module.HecDeliveryError))
+        self.assertTrue(issubclass(module.HecTransportError, module.HecDeliveryError))
+        self.assertTrue(
+            issubclass(module.HecBatchDeliveryError, module.HecDeliveryError)
+        )
 
     def test_v3_development_version_is_exposed_from_the_runtime_module(self):
         self.assertEqual(module.__version__, "3.0.0.dev0")
