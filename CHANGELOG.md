@@ -31,6 +31,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- Calculated JSON and raw batch thresholds from the exact uncompressed UTF-8
+  request-body bytes, and stopped individually oversized events from creating
+  empty queued batches.
 - Replaced time- and node-derived HEC request channels with random UUIDv4
   identifiers while preserving the existing header and raw query-parameter
   wire shape.

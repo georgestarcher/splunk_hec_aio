@@ -631,11 +631,14 @@ class SplunkHecAio:
         """Set Post Max Byte Size (int).
 
         Parameters:
-                value (int): Sets the max byte size per HTTP post
+                value (int): Sets the maximum uncompressed UTF-8 request-body
+                    size per HTTP post.
         Note:
                 Thanks to Brett Adams of the SplunkTrust for default limit input to support older Splunk versions.
                 The value is recommended to be set to a size that is approximately 256 * the max  of a data payload length.
                 This better fit value forces more spread across the AIO concurrent posts for better performance.
+                A single payload larger than this value is queued alone because
+                the sender does not split individual events.
         Returns:
                 none
 
@@ -653,19 +656,27 @@ class SplunkHecAio:
         self.log.info("Splunk Post Max Byte Size: max_byte_size={0}".format(value))
 
     def get_post_max_byte_size(self):
-        """Get payload plain JSON mode (bool).
-        
-            Default value is True - payload is expected to be a application/json dict.
-            Value: False - payload is expected to be text/plain.
+        """Get the maximum uncompressed UTF-8 request-body bytes per batch.
+
+            Default value is 512000.
 
             Parameters:
                 none
             Returns:
-                bool: True/False control if payload is plain JSON dict.
+                int: maximum byte size per HTTP post.
                 
         """
 
         return self._max_byte_size
+
+    def _payload_wire_size(self,payload):
+        """Return this payload's uncompressed UTF-8 request-body size."""
+
+        if self._payload_mode_json:
+            payload_string = json.dumps(payload,default=str)
+        else:
+            payload_string = str(payload)
+        return len(payload_string.encode("utf-8"))
        
     def set_payload_json_format(self,value=True):
         """Set payload plain JSON mode (bool).
@@ -1070,17 +1081,20 @@ class SplunkHecAio:
         if json_format and self._index:
             payload.update({"index":self._index})
 
-        # Convert payload to string of json.
-        payloadString = json.dumps(payload,default=str)
-        if not self._payload_mode_json and type(payload) is str:
-            # Enforce payload to string.
-            payloadString = str(payload)
+        # Measure the exact uncompressed UTF-8 bytes used by the request body.
+        payload_length = self._payload_wire_size(payload)
+        queued_length = sum(
+            self._payload_wire_size(queued_payload)
+            for queued_payload in self.payload_queue.elements
+        )
 
-        # Measure length of the payload string.
-        payloadLength = len(payloadString)
-
-        # Check if next payload will exceed limits, post current batch and set next batch to the new payload that exceeded the limit.
-        if ((self.payload_queue.byte_size+payloadLength) > self.get_post_max_byte_size() or (self.get_post_max_byte_size() - self.payload_queue.byte_size) < payloadLength):
+        # Move only a non-empty completed batch when the next payload would
+        # exceed the limit. An individually oversized event remains intact and
+        # is sent alone because HEC events cannot be split safely.
+        if (
+            not self.payload_queue.is_empty
+            and queued_length + payload_length > self.get_post_max_byte_size()
+        ):
             # Move batch to post queue.
             self.post_queue.enqueue([self.payload_queue.dequeue() for x in range(self.payload_queue.size)])
 
