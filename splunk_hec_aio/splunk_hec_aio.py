@@ -1030,6 +1030,7 @@ class SplunkHecAio:
                 )
 
             ack_ids = tuple(self._ack_pending)
+            request_uses_remaining_deadline = remaining <= 30.0
             try:
                 statuses = await asyncio.wait_for(
                     self._http_ack_status_task(
@@ -1050,10 +1051,16 @@ class SplunkHecAio:
                     ),
                 ) from error
             except _HecAcknowledgmentStatusError as error:
+                category = error.category
+                if (
+                    request_uses_remaining_deadline
+                    and category == "acknowledgment request timed out"
+                ):
+                    category = "acknowledgment timed out"
                 raise HecAcknowledgmentError(
                     results,
                     self._pending_ack_failures(
-                        error.category,
+                        category,
                         error.retryable,
                     ),
                 ) from error
