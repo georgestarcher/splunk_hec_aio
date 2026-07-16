@@ -371,16 +371,32 @@ class TestStrictDelivery(unittest.TestCase):
         self.assertEqual(len(raised.exception.failures), 2)
         self.assertEqual(self.sender.post_queue.elements, [batches[0], batches[2]])
 
-    def test_strict_cancellation_remains_cancellation(self):
-        self.sender.post_queue.enqueue([{"event": "cancelled"}])
+    def test_strict_cancellation_preserves_retryable_batches_and_cancellation(self):
+        batches = [
+            [{"event": "cancelled"}],
+            [{"event": "retryable"}],
+            [{"event": "accepted"}],
+        ]
+        for batch in batches:
+            self.sender.post_queue.enqueue(batch)
+
+        async def deliver(url, batch, batch_index):
+            self.assertEqual(url, self.sender.splunk_post_url)
+            if batch_index == 0:
+                raise asyncio.CancelledError
+            if batch_index == 1:
+                raise HecTransportError(batch_index, len(batch), "timeout", True)
+            return result(batch_index, len(batch))
 
         with patch.object(
             self.sender,
             "_http_post_strict_task",
-            new=AsyncMock(side_effect=asyncio.CancelledError),
+            new=AsyncMock(side_effect=deliver),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 asyncio.run(self.sender._post_batch_strict())
+
+        self.assertEqual(self.sender.post_queue.elements, batches[:2])
 
     def test_strict_auto_flush_propagates_failure(self):
         self.sender.set_pop_empty_fields(False)

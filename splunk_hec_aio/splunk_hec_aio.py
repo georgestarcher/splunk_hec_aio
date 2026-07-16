@@ -511,11 +511,14 @@ class SplunkHecAio:
         results = []
         failures = []
         retryable_batches = []
+        propagated_outcome = None
 
         for batch_index,outcome in enumerate(outcomes):
             if isinstance(outcome, asyncio.CancelledError):
-                raise outcome
-            if isinstance(outcome, HecDeliveryResult):
+                retryable_batches.append(batches[batch_index])
+                if propagated_outcome is None:
+                    propagated_outcome = outcome
+            elif isinstance(outcome, HecDeliveryResult):
                 results.append(outcome)
             elif isinstance(outcome, HecDeliveryError):
                 failures.append(outcome)
@@ -537,11 +540,15 @@ class SplunkHecAio:
                     )
                 )
             elif isinstance(outcome, BaseException):
-                raise outcome
+                retryable_batches.append(batches[batch_index])
+                if propagated_outcome is None:
+                    propagated_outcome = outcome
 
         for batch in retryable_batches:
             self.post_queue.enqueue(batch)
 
+        if propagated_outcome is not None:
+            raise propagated_outcome
         if failures:
             raise HecBatchDeliveryError(results,failures)
         return tuple(results)
