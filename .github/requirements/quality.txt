@@ -1,7 +1,7 @@
 # Modern quality tools run only on Python 3.13; they do not set the runtime floor.
-hypothesis==6.156.6
+hypothesis==6.161.6
 mypy==1.20.2
 pip-audit==2.10.1
 pytest==9.1.1
 pytest-cov==7.1.0
-ruff==0.15.21
+ruff==0.16.0
